@@ -1,0 +1,151 @@
+// Modelo de datos — Fase 2.
+// Convención: modelos en PascalCase, tablas mapeadas a snake_case plural
+// con @@map; columnas con los nombres por defecto de Prisma.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EventType {
+  GAME_SELECTION
+}
+
+enum EventStatus {
+  DRAFT
+  SUGGESTIONS_ACTIVE
+  SUGGESTIONS_FINISHED
+  VOTING_ACTIVE
+  VOTING_FINISHED
+  TIE
+  COMPLETED
+  CANCELLED
+}
+
+enum RoundPhase {
+  SUGGESTIONS
+  VOTING
+  FINISHED
+}
+
+model User {
+  id             String    @id @default(cuid())
+  twitchId       String    @unique
+  login          String
+  displayName    String
+  accessToken    String
+  refreshToken   String
+  tokenExpiresAt DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  channel        Channel?
+
+  @@map("users")
+}
+
+model Channel {
+  id        String   @id @default(cuid())
+  twitchId  String   @unique
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  events    Event[]
+
+  @@map("channels")
+}
+
+model Event {
+  id                    String      @id @default(cuid())
+  channelId             String
+  channel               Channel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  type                  EventType
+  status                EventStatus @default(DRAFT)
+  suggestionDurationSec Int         @default(60)
+  votingDurationSec     Int         @default(60)
+  maxGames              Int         @default(10)
+  createdAt             DateTime    @default(now())
+  startedAt             DateTime?
+  endedAt               DateTime?
+  rounds                Round[]
+
+  @@index([channelId, status])
+  @@map("events")
+}
+
+model Round {
+  id             String          @id @default(cuid())
+  eventId        String
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  number         Int
+  phase          RoundPhase
+  phaseStartedAt DateTime?
+  phaseEndsAt    DateTime?
+  createdAt      DateTime        @default(now())
+  suggestions    Suggestion[]
+  suggestionBans SuggestionBan[]
+  votingOptions  VotingOption[]
+  votes          Vote[]
+
+  @@unique([eventId, number])
+  @@map("rounds")
+}
+
+model Suggestion {
+  id             String         @id @default(cuid())
+  roundId        String
+  round          Round          @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  twitchUserId   String
+  twitchLogin    String
+  gameName       String
+  normalizedName String
+  createdAt      DateTime       @default(now())
+  votingOptions  VotingOption[]
+
+  @@unique([roundId, twitchUserId])
+  @@unique([roundId, normalizedName])
+  @@map("suggestions")
+}
+
+model SuggestionBan {
+  id             String   @id @default(cuid())
+  roundId        String
+  round          Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  normalizedName String
+  createdAt      DateTime @default(now())
+
+  @@unique([roundId, normalizedName])
+  @@map("suggestion_bans")
+}
+
+model VotingOption {
+  id           String     @id @default(cuid())
+  roundId      String
+  round        Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  position     Int
+  suggestionId String
+  suggestion   Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Restrict)
+  gameName     String
+  createdAt    DateTime   @default(now())
+  votes        Vote[]
+
+  @@unique([roundId, position])
+  @@unique([roundId, suggestionId])
+  @@map("voting_options")
+}
+
+model Vote {
+  id             String       @id @default(cuid())
+  roundId        String
+  round          Round        @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  votingOptionId String
+  votingOption   VotingOption @relation(fields: [votingOptionId], references: [id], onDelete: Cascade)
+  twitchUserId   String
+  createdAt      DateTime     @default(now())
+
+  @@unique([roundId, twitchUserId])
+  @@map("votes")
+}

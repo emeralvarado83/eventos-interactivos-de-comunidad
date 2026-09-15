@@ -10,6 +10,40 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-archivo-black);
+}
+
+@keyframes overlay-leader-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 16px rgba(251, 191, 36, 0.3),
+      inset 0 0 10px rgba(251, 191, 36, 0.06);
+  }
+  50% {
+    box-shadow:
+      0 0 34px rgba(251, 191, 36, 0.55),
+      inset 0 0 18px rgba(251, 191, 36, 0.14);
+  }
+}
+
+@keyframes overlay-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.overlay-leader-glow {
+  animation: overlay-leader-glow 2.4s ease-in-out infinite;
+}
+
+.overlay-rise {
+  animation: overlay-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-color-scheme: dark) {

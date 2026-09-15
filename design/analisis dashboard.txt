@@ -1,0 +1,366 @@
+Analicemos este diseño como referencia para el dashboard del sistema. La estructura general me gusta y podemos mantener buena parte de la distribución, pero debemos adaptarla a las funcionalidades reales de nuestro sistema.
+
+### 1. Cabecera superior
+
+En la parte superior aparece actualmente el logo de Twitch. **No debemos incluir el logo de Twitch**, ya que no forma parte de nuestro diseño.
+
+El nombre **"Game Picker"** es provisional y todavía no es el nombre definitivo del sistema, por lo que debe tratarse como texto temporal y poder cambiarse posteriormente.
+
+También aparece el texto **"Sugerencias y votos de juegos BETA"**. Este texto tampoco es definitivo, así que debemos dejarlo como contenido provisional o fácilmente editable.
+
+La navegación propuesta actualmente es:
+
+* Inicio
+* Lista de juegos
+* Configuración
+* Historial
+* Ayuda
+
+Podemos mantener:
+
+* Inicio
+* Lista de juegos
+* Configuración
+* Historial
+
+**Eliminar "Ayuda" del menú**, ya que no considero necesario incluirla en esta versión.
+
+Debajo de esta zona aparece un bloque promocional con el texto **"Haz que tu comunidad participe más"**. **Este bloque no debe incluirse en el nuevo diseño.**
+
+Sí quiero conservar la parte superior derecha donde aparece:
+
+* Avatar del streamer
+* Nombre/usuario
+* Indicador de que está en vivo en Twitch
+
+También debemos mantener:
+
+* Estado de la transmisión/directo
+* Botón para copiar el enlace del overlay
+
+Esta parte funciona bien visualmente y debe conservarse.
+
+---
+
+### 2. Estructura principal del dashboard
+
+La zona central del dashboard debe estar preparada para mostrar diferentes estados dependiendo de si existe o no un evento y de la fase en la que se encuentra.
+
+No debemos diseñar el dashboard pensando únicamente en un evento activo.
+
+El sistema debe contemplar como mínimo estos estados:
+
+1. **Sin evento activo**
+2. **Ronda de sugerencias**
+3. **Ronda de votación**
+4. **Evento finalizado**
+5. **Evento cancelado**, si posteriormente se contempla esta posibilidad
+
+La estructura visual general puede mantenerse, pero el contenido debe cambiar dinámicamente según el estado.
+
+Esto permitirá que el dashboard tenga una experiencia coherente durante todo el ciclo de vida de un evento.
+
+---
+
+### 3. Estado: no existe ningún evento activo
+
+Este estado es especialmente importante.
+
+Cuando el streamer entra al dashboard y todavía **no ha creado ningún evento**, no debemos mostrar una interfaz vacía con:
+
+* Temporizador en cero
+* Juegos sugeridos en cero
+* Votos en cero
+* Una tabla vacía
+* Botones de acciones que no tienen sentido
+
+En su lugar, la zona central debe mostrar un **estado vacío orientado a la creación del primer evento**.
+
+La zona central puede mostrar algo similar a:
+
+**"No hay ningún evento activo"**
+
+Debajo:
+
+**"Crea un evento para que tu comunidad pueda sugerir y votar qué jugar."**
+
+Y un CTA principal:
+
+**"+ Crear nuevo evento"**
+
+También podemos incluir una representación visual sencilla del flujo:
+
+**Sugerencias → Votación → Resultado**
+
+La intención es que el streamer entienda inmediatamente qué debe hacer sin necesidad de leer una explicación extensa.
+
+Esta zona no debe parecer un error o una página vacía. Debe sentirse como el estado inicial natural del producto.
+
+---
+
+### 4. Estado sin evento y columna derecha
+
+Cuando no existe ningún evento activo, el preview del overlay también debe reflejar este estado.
+
+En lugar de mostrar un overlay vacío, podemos mostrar:
+
+**"Preview del overlay"**
+
+y dentro:
+
+**"No hay ningún evento activo."**
+
+**"Crea un evento para comenzar."**
+
+La configuración específica del evento tampoco debería mostrarse como si existiera un evento.
+
+En su lugar, podemos mostrar una sección más sencilla como:
+
+**"Próximo evento"**
+
+con una acción:
+
+**"Crear evento"**
+
+De esta manera, tanto la zona central como la columna derecha conducen al streamer hacia la misma acción principal.
+
+---
+
+### 5. Creación de un evento
+
+El botón **"Crear nuevo evento"** debe ser la acción principal cuando no existe ningún evento.
+
+Podemos tener este CTA en dos lugares:
+
+* Dentro del estado vacío de la zona central.
+* En la cabecera del dashboard mediante un botón **"+ Crear evento"**.
+
+No es necesario duplicar excesivamente las acciones, pero debe existir un acceso evidente para iniciar un nuevo evento.
+
+Al crear el evento, el dashboard pasa automáticamente del estado **"Sin evento"** al estado correspondiente a la primera fase del evento.
+
+---
+
+### 6. Bloque principal: evento actual
+
+Cuando existe un evento activo, en la zona central aparece el bloque denominado:
+
+**"Evento actual · Sugerencias y votos"**
+
+La razón de utilizar esta estructura es que nuestro sistema permitirá crear diferentes tipos de eventos en el futuro.
+
+Por lo tanto, debemos diseñar esta zona de manera flexible para poder mostrar:
+
+**Evento actual · [Tipo de evento]**
+
+En este caso, el tipo de evento será:
+
+**"Sugerencias y votos"**
+
+Dentro de este bloque debemos mantener:
+
+* Título del evento: **"¿Qué jugamos hoy?"**
+* Estado del evento
+* Temporizador
+* Barra de progreso asociada al temporizador
+
+El estado puede cambiar dependiendo de la fase:
+
+* Sugerencias abiertas
+* Sugerencias cerradas
+* Votación abierta
+* Evento finalizado
+
+La combinación del temporizador y la barra de progreso me parece adecuada y debe conservarse.
+
+---
+
+### 7. Información de la ronda
+
+Debajo de la barra de progreso encontramos información relacionada con la actividad actual.
+
+Debemos mostrar:
+
+* Número de juegos sugeridos
+* Número de votos totales
+
+Pero estos datos deben adaptarse a la fase actual.
+
+#### Durante la ronda de sugerencias
+
+Mostrar:
+
+* Número de juegos sugeridos
+
+No mostrar todavía los votos, porque la votación aún no ha comenzado.
+
+#### Durante la ronda de votación
+
+Mostrar:
+
+* Número de juegos sugeridos
+* Número de votos totales
+
+De esta manera, el dashboard comunica claramente qué está ocurriendo en cada momento.
+
+---
+
+### 8. Acciones de la ronda
+
+Los botones también deben cambiar según la fase del evento.
+
+Durante la ronda de sugerencias:
+
+* **Cerrar sugerencias**
+* **Ver overlay**
+
+Durante la ronda de votación:
+
+* **Cerrar votación**
+* **Ver overlay**
+
+No debemos mostrar acciones que no correspondan al estado actual.
+
+---
+
+### 9. Sección de juegos sugeridos
+
+Debajo encontramos la sección **"Juegos sugeridos"**.
+
+La estructura de la lista me parece correcta y podemos mantenerla como base.
+
+Sin embargo, el contenido debe cambiar según la fase.
+
+#### Ronda de sugerencias
+
+Mostrar:
+
+* Número/posición del juego
+* Nombre del juego
+
+No mostrar votos.
+
+#### Ronda de votación
+
+Mostrar:
+
+* Número/posición del juego
+* Nombre del juego
+* Cantidad de votos
+
+La posición de cada juego es importante porque los usuarios podrán votar utilizando el número correspondiente del juego en la lista.
+
+Por ejemplo:
+
+1. Minecraft
+2. GTA V
+3. Elden Ring
+4. Fortnite
+
+El espectador podrá utilizar el número correspondiente para votar.
+
+---
+
+### 10. Preview del overlay
+
+En la columna derecha encontramos el preview del overlay.
+
+Esta sección me parece correcta y debemos conservarla.
+
+El preview debe actualizarse según el estado actual del evento.
+
+Por ejemplo:
+
+**Sin evento**
+
+* Mostrar estado vacío.
+
+**Sugerencias**
+
+* Mostrar los juegos que está sugiriendo la comunidad.
+* No mostrar votos.
+
+**Votación**
+
+* Mostrar los juegos.
+* Mostrar sus votos.
+
+**Evento finalizado**
+
+* Mostrar el resultado final/ganador.
+
+El objetivo es que el streamer pueda visualizar rápidamente cómo está viendo la comunidad el evento que actualmente aparece en Twitch.
+
+---
+
+### 11. Configuración del evento
+
+Debajo del preview encontramos la configuración del evento.
+
+Debemos mantener:
+
+* Duración de la ronda de sugerencias
+* Duración de la ronda de votación
+* Máximo número de juegos que pueden aparecer en el listado
+
+Debemos eliminar:
+
+* Permitir sugerencias duplicadas
+* Máximo de votos por usuario
+* Mostrar nombres de usuarios en el overlay
+
+Estas opciones no formarán parte de la configuración del sistema.
+
+---
+
+### 12. Comportamiento general del dashboard
+
+El dashboard debe diseñarse como una interfaz dinámica basada en estados.
+
+El flujo principal será:
+
+**Sin evento**
+↓
+**Crear evento**
+↓
+**Ronda de sugerencias**
+↓
+**Ronda de votación**
+↓
+**Evento finalizado**
+
+Cada estado debe tener su propia información, acciones y representación visual.
+
+No queremos crear diferentes páginas para cada estado. La idea es mantener una estructura de dashboard consistente y cambiar dinámicamente el contenido de las secciones según el estado actual.
+
+Esto hará que la interfaz sea más sencilla, coherente y escalable.
+
+---
+
+### 13. Objetivo visual y de UX
+
+No debemos limitarnos a copiar exactamente el diseño de referencia. Utilicémoslo como base para la distribución y jerarquía visual, pero adaptemos completamente la interfaz a nuestro producto.
+
+El dashboard debe permitir que el streamer entienda rápidamente:
+
+1. Si existe un evento activo.
+2. Qué evento está activo.
+3. Qué tipo de evento es.
+4. En qué fase se encuentra.
+5. Cuánto tiempo queda.
+6. Cuántos juegos han sido sugeridos.
+7. Cuántos votos se han realizado cuando la votación está activa.
+8. Qué juegos están participando.
+9. Qué verá la comunidad en el overlay.
+10. Qué configuración tiene actualmente el evento.
+11. Qué acción debe realizar a continuación.
+
+Cuando no exista un evento, la prioridad debe ser **crear el primer evento**.
+
+Cuando exista un evento, la prioridad debe ser **gestionar rápidamente su estado y actividad**.
+
+La interfaz debe sentirse moderna, limpia y especialmente optimizada para un streamer que está gestionando el evento mientras realiza una transmisión en directo.
+
+Finalmente, debemos mantener la arquitectura visual suficientemente flexible para que en el futuro podamos incorporar nuevos tipos de eventos sin tener que rediseñar completamente el dashboard.
+
+
