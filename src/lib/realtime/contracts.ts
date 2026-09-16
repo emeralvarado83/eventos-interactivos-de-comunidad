@@ -15,6 +15,32 @@ export type EventStatusName =
 
 export type RoundPhaseName = "SUGGESTIONS" | "VOTING" | "FINISHED";
 
+/**
+ * Identificadores internos estables de los tipos de evento. Reflejan el enum
+ * EventType de Prisma; los textos visibles viven en lib/branding.ts.
+ */
+export type EventTypeName = "GAME_SELECTION" | "RAFFLE";
+
+export const EVENT_TYPES: readonly EventTypeName[] = ["GAME_SELECTION", "RAFFLE"];
+
+/**
+ * Payload de guardado de configuración (PATCH /api/events/[id]): unión
+ * discriminada por tipo. Cada variante lleva solo los campos de su tipo.
+ */
+export type EventConfigPayload =
+  | {
+      type: "GAME_SELECTION";
+      suggestionDurationSec: number;
+      votingDurationSec: number;
+      maxGames: number;
+    }
+  | {
+      type: "RAFFLE";
+      registrationDurationSec: number;
+      /** null = sin límite de participantes. */
+      maxParticipants: number | null;
+    };
+
 export interface SuggestionView {
   id: string;
   gameName: string;
@@ -35,11 +61,15 @@ export interface EventStateSnapshot {
   channelId: string;
   event: {
     id: string;
-    type: "GAME_SELECTION";
+    type: EventTypeName;
     status: EventStatusName;
     suggestionDurationSec: number;
     votingDurationSec: number;
     maxGames: number;
+    /** Config del sorteo (type = RAFFLE). Duración de la inscripción. */
+    registrationDurationSec: number;
+    /** Config del sorteo (type = RAFFLE). null = sin límite. */
+    maxParticipants: number | null;
   } | null;
   round: {
     id: string;

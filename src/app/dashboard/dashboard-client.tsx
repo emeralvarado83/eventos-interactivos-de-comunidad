@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type EventStateSnapshot } from "@/lib/realtime/contracts";
+import {
+  type EventConfigPayload,
+  type EventStateSnapshot,
+} from "@/lib/realtime/contracts";
 import { useChannelSocket } from "@/hooks/use-channel-socket";
 import { formatCountdown, useCountdown } from "@/hooks/use-countdown";
-import { EVENT_TITLE, EVENT_TYPE_LABELS } from "@/lib/branding";
+import { EVENT_TYPE_META } from "@/lib/branding";
 import { Sidebar } from "./components/sidebar";
 import { Topbar } from "./components/topbar";
 import { StatusPill } from "./components/status-pill";
@@ -100,11 +103,7 @@ export function DashboardClient({
     );
   }
 
-  function saveConfig(config: {
-    suggestionDurationSec: number;
-    votingDurationSec: number;
-    maxGames: number;
-  }) {
+  function saveConfig(config: EventConfigPayload) {
     const eventId = snapshot?.event?.id;
     if (!eventId) return;
     void runAction("config", () =>
@@ -195,11 +194,16 @@ export function DashboardClient({
             <OverlayPreview overlayUrl={overlayUrl} empty={!hasEvent} />
             <ConfigPanel
               eventId={snapshot?.event?.id ?? null}
+              type={snapshot?.event?.type ?? "GAME_SELECTION"}
               suggestionDurationSec={
                 snapshot?.event?.suggestionDurationSec ?? 60
               }
               votingDurationSec={snapshot?.event?.votingDurationSec ?? 60}
               maxGames={snapshot?.event?.maxGames ?? 10}
+              registrationDurationSec={
+                snapshot?.event?.registrationDurationSec ?? 300
+              }
+              maxParticipants={snapshot?.event?.maxParticipants ?? null}
               editable={status === "DRAFT"}
               pending={pending === "config"}
               onSave={saveConfig}
@@ -253,7 +257,7 @@ function EventCard({
   return (
     <section className={`${CARD} p-6`}>
       <p className="text-[11px] font-black uppercase tracking-[0.25em] text-violet-300">
-        Evento actual · {EVENT_TYPE_LABELS[event.type] ?? event.type}
+        Evento actual · {EVENT_TYPE_META[event.type].label}
         {snapshot.round && (
           <span className="ml-2 text-zinc-500">
             · Ronda {snapshot.round.number}
@@ -262,7 +266,9 @@ function EventCard({
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
-        <h2 className="font-display text-3xl text-white">{EVENT_TITLE}</h2>
+        <h2 className="font-display text-3xl text-white">
+          {EVENT_TYPE_META[event.type].title}
+        </h2>
         <StatusPill status={status} />
         {showCountdown && (
           <span className="flex items-center gap-2 font-mono text-2xl font-bold tabular-nums text-violet-300">
@@ -284,7 +290,7 @@ function EventCard({
       {status === "DRAFT" && (
         <p className="mt-3 text-sm text-zinc-400">
           Evento en preparación. Ajusta la configuración en el panel de la
-          derecha e inicia las sugerencias cuando estés listo.
+          derecha e inicia el evento cuando estés listo.
         </p>
       )}
 
@@ -347,11 +353,18 @@ function EventCard({
           <>
             <button
               type="button"
-              disabled={pending !== null}
+              disabled={pending !== null || event.type !== "GAME_SELECTION"}
+              title={
+                event.type === "RAFFLE"
+                  ? "La lógica del sorteo estará disponible próximamente"
+                  : undefined
+              }
               onClick={() => onAction("start", "start-suggestions")}
               className={PRIMARY_BTN}
             >
-              {pending === "start" ? "Iniciando…" : "Iniciar sugerencias"}
+              {pending === "start"
+                ? "Iniciando…"
+                : EVENT_TYPE_META[event.type].startLabel}
             </button>
             <button
               type="button"

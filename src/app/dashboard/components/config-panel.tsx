@@ -1,23 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import {
+  EVENT_TYPES,
+  type EventConfigPayload,
+  type EventTypeName,
+} from "@/lib/realtime/contracts";
+import { EVENT_TYPE_META } from "@/lib/branding";
+
 interface ConfigPanelProps {
   eventId: string | null;
+  type: EventTypeName;
   suggestionDurationSec: number;
   votingDurationSec: number;
   maxGames: number;
+  registrationDurationSec: number;
+  maxParticipants: number | null;
   /** Solo editable mientras el evento está en DRAFT. */
   editable: boolean;
   pending: boolean;
-  onSave: (config: {
-    suggestionDurationSec: number;
-    votingDurationSec: number;
-    maxGames: number;
-  }) => void;
+  onSave: (config: EventConfigPayload) => void;
 }
 
 const INPUT_CLASS =
   "w-full rounded-lg border border-violet-500/25 bg-[#080512] px-3 py-2 text-sm font-semibold text-white outline-none transition-colors focus:border-violet-400/60 disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Valor provisional del input de participantes cuando el límite está en "Sin límite". */
+const DEFAULT_MAX_PARTICIPANTS = 100;
 
 export function ConfigPanel(props: ConfigPanelProps) {
   return (
@@ -43,92 +52,206 @@ export function ConfigPanel(props: ConfigPanelProps) {
 }
 
 function ConfigForm({
+  type,
   suggestionDurationSec,
   votingDurationSec,
   maxGames,
+  registrationDurationSec,
+  maxParticipants,
   editable,
   pending,
   onSave,
 }: ConfigPanelProps) {
+  const [selectedType, setSelectedType] = useState(type);
   const [suggestionSec, setSuggestionSec] = useState(suggestionDurationSec);
   const [votingSec, setVotingSec] = useState(votingDurationSec);
   const [games, setGames] = useState(maxGames);
+  const [registrationSec, setRegistrationSec] = useState(
+    registrationDurationSec
+  );
+  const [unlimited, setUnlimited] = useState(maxParticipants === null);
+  const [participants, setParticipants] = useState(
+    maxParticipants ?? DEFAULT_MAX_PARTICIPANTS
+  );
   const [prevProps, setPrevProps] = useState({
+    type,
     suggestionDurationSec,
     votingDurationSec,
     maxGames,
+    registrationDurationSec,
+    maxParticipants,
   });
 
   // Resincroniza los inputs cuando el snapshot cambia (ajuste durante el render).
   if (
+    prevProps.type !== type ||
     prevProps.suggestionDurationSec !== suggestionDurationSec ||
     prevProps.votingDurationSec !== votingDurationSec ||
-    prevProps.maxGames !== maxGames
+    prevProps.maxGames !== maxGames ||
+    prevProps.registrationDurationSec !== registrationDurationSec ||
+    prevProps.maxParticipants !== maxParticipants
   ) {
-    setPrevProps({ suggestionDurationSec, votingDurationSec, maxGames });
+    setPrevProps({
+      type,
+      suggestionDurationSec,
+      votingDurationSec,
+      maxGames,
+      registrationDurationSec,
+      maxParticipants,
+    });
+    setSelectedType(type);
     setSuggestionSec(suggestionDurationSec);
     setVotingSec(votingDurationSec);
     setGames(maxGames);
+    setRegistrationSec(registrationDurationSec);
+    setUnlimited(maxParticipants === null);
+    setParticipants(maxParticipants ?? DEFAULT_MAX_PARTICIPANTS);
   }
 
   function save() {
-    onSave({
-      suggestionDurationSec: suggestionSec,
-      votingDurationSec: votingSec,
-      maxGames: games,
-    });
+    if (selectedType === "RAFFLE") {
+      onSave({
+        type: "RAFFLE",
+        registrationDurationSec: registrationSec,
+        maxParticipants: unlimited ? null : participants,
+      });
+    } else {
+      onSave({
+        type: "GAME_SELECTION",
+        suggestionDurationSec: suggestionSec,
+        votingDurationSec: votingSec,
+        maxGames: games,
+      });
+    }
   }
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
-          Duración de sugerencias
-          <span className="relative">
-            <input
-              type="number"
-              min={10}
-              max={3600}
-              disabled={!editable}
-              value={suggestionSec}
-              onChange={(e) => setSuggestionSec(Number(e.target.value))}
-              className={INPUT_CLASS}
-            />
-            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
-              segundos
-            </span>
-          </span>
-        </label>
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
-          Duración de votación
-          <span className="relative">
-            <input
-              type="number"
-              min={10}
-              max={3600}
-              disabled={!editable}
-              value={votingSec}
-              onChange={(e) => setVotingSec(Number(e.target.value))}
-              className={INPUT_CLASS}
-            />
-            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
-              segundos
-            </span>
-          </span>
-        </label>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-semibold text-zinc-400">
+          Tipo de evento
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          {EVENT_TYPES.map((t) => {
+            const selected = t === selectedType;
+            return (
+              <button
+                key={t}
+                type="button"
+                disabled={!editable}
+                aria-pressed={selected}
+                onClick={() => setSelectedType(t)}
+                className={`rounded-xl border px-3 py-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  selected
+                    ? "border-violet-400/70 bg-violet-500/20 text-white"
+                    : "border-violet-500/25 bg-[#080512] text-zinc-400 hover:border-violet-400/50 hover:text-violet-200"
+                }`}
+              >
+                {EVENT_TYPE_META[t].label}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
-        Máximo de juegos en la votación
-        <input
-          type="number"
-          min={1}
-          max={50}
-          disabled={!editable}
-          value={games}
-          onChange={(e) => setGames(Number(e.target.value))}
-          className={INPUT_CLASS}
-        />
-      </label>
+
+      {selectedType === "GAME_SELECTION" && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
+              Duración de sugerencias
+              <span className="relative">
+                <input
+                  type="number"
+                  min={10}
+                  max={3600}
+                  disabled={!editable}
+                  value={suggestionSec}
+                  onChange={(e) => setSuggestionSec(Number(e.target.value))}
+                  className={INPUT_CLASS}
+                />
+                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
+                  segundos
+                </span>
+              </span>
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
+              Duración de votación
+              <span className="relative">
+                <input
+                  type="number"
+                  min={10}
+                  max={3600}
+                  disabled={!editable}
+                  value={votingSec}
+                  onChange={(e) => setVotingSec(Number(e.target.value))}
+                  className={INPUT_CLASS}
+                />
+                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
+                  segundos
+                </span>
+              </span>
+            </label>
+          </div>
+          <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
+            Máximo de juegos en la votación
+            <input
+              type="number"
+              min={1}
+              max={50}
+              disabled={!editable}
+              value={games}
+              onChange={(e) => setGames(Number(e.target.value))}
+              className={INPUT_CLASS}
+            />
+          </label>
+        </>
+      )}
+
+      {selectedType === "RAFFLE" && (
+        <>
+          <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
+            Duración de inscripción
+            <span className="relative">
+              <input
+                type="number"
+                min={10}
+                max={3600}
+                disabled={!editable}
+                value={registrationSec}
+                onChange={(e) => setRegistrationSec(Number(e.target.value))}
+                className={INPUT_CLASS}
+              />
+              <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
+                segundos
+              </span>
+            </span>
+          </label>
+          <div className="flex flex-col gap-1.5">
+            <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
+              Máximo de participantes
+              <input
+                type="number"
+                min={1}
+                max={10000}
+                disabled={!editable || unlimited}
+                value={participants}
+                onChange={(e) => setParticipants(Number(e.target.value))}
+                className={INPUT_CLASS}
+              />
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-zinc-400">
+              <input
+                type="checkbox"
+                checked={unlimited}
+                disabled={!editable}
+                onChange={(e) => setUnlimited(e.target.checked)}
+                className="h-4 w-4 accent-violet-500 disabled:cursor-not-allowed"
+              />
+              Sin límite de participantes
+            </label>
+          </div>
+        </>
+      )}
 
       {editable ? (
         <button

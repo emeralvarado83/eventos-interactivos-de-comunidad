@@ -5,10 +5,12 @@
 import { db } from "@/lib/db";
 import { BusinessError } from "@/lib/errors";
 import { assertTransition } from "@/lib/events/state-machine";
+import type { EventConfigInput } from "@/lib/events/config";
 import {
   SOCKET_EVENTS,
   type EventStateSnapshot,
   type EventStatusName,
+  type EventTypeName,
 } from "@/lib/realtime/contracts";
 import { emitState, emitToChannel } from "@/lib/realtime/server";
 import { clearPhaseTimer, schedulePhaseTimer } from "@/lib/timers";
@@ -20,6 +22,9 @@ const MAX_DURATION_SEC = 3600;
 const MIN_MAX_GAMES = 1;
 const MAX_MAX_GAMES = 50;
 const DEFAULT_MAX_GAMES = 10;
+const MIN_MAX_PARTICIPANTS = 1;
+const MAX_MAX_PARTICIPANTS = 10000;
+const DEFAULT_REGISTRATION_SEC = 300;
 
 // Estados en los que un evento ya no admite actividad pero COMPLETED sigue
 // siendo "visible" como evento actual del canal (muestra el ganador).
@@ -41,7 +46,16 @@ function validMaxGames(value: number): boolean {
   );
 }
 
-function assertValidConfig(config: {
+function validMaxParticipants(value: number): boolean {
+  return (
+    Number.isInteger(value) &&
+    value >= MIN_MAX_PARTICIPANTS &&
+    value <= MAX_MAX_PARTICIPANTS
+  );
+}
+
+/** Config de Sugerencias y votos (GAME_SELECTION), completa y válida. */
+function assertValidSuggestionsConfig(config: {
   suggestionDurationSec: number;
   votingDurationSec: number;
   maxGames: number;
@@ -57,6 +71,26 @@ function assertValidConfig(config: {
   if (!validMaxGames(config.maxGames)) {
     throw new BusinessError(
       `El máximo de juegos debe ser un entero entre ${MIN_MAX_GAMES} y ${MAX_MAX_GAMES}`
+    );
+  }
+}
+
+/** Config del sorteo (RAFFLE), completa y válida. */
+function assertValidRaffleConfig(config: {
+  registrationDurationSec: number;
+  maxParticipants: number | null;
+}): void {
+  if (!validDuration(config.registrationDurationSec)) {
+    throw new BusinessError(
+      `La duración de la inscripción debe ser un entero entre ${MIN_DURATION_SEC} y ${MAX_DURATION_SEC} segundos`
+    );
+  }
+  if (
+    config.maxParticipants !== null &&
+    !validMaxParticipants(config.maxParticipants)
+  ) {
+    throw new BusinessError(
+      `El máximo de participantes debe ser un entero entre ${MIN_MAX_PARTICIPANTS} y ${MAX_MAX_PARTICIPANTS}, o null (sin límite)`
     );
   }
 }
@@ -80,15 +114,31 @@ export async function publishEventState(
 export async function createEvent(
   channelId: string,
   options: {
+    type?: EventTypeName;
     suggestionDurationSec?: number;
     votingDurationSec?: number;
     maxGames?: number;
+    registrationDurationSec?: number;
+    maxParticipants?: number | null;
   } = {}
 ) {
+  const type = options.type ?? "GAME_SELECTION";
   const suggestionDurationSec = options.suggestionDurationSec ?? 60;
   const votingDurationSec = options.votingDurationSec ?? 60;
   const maxGames = options.maxGames ?? DEFAULT_MAX_GAMES;
-  assertValidConfig({ suggestionDurationSec, votingDurationSec, maxGames });
+  const registrationDurationSec =
+    options.registrationDurationSec ?? DEFAULT_REGISTRATION_SEC;
+  const maxParticipants = options.maxParticipants ?? null;
+
+  if (type === "RAFFLE") {
+    assertValidRaffleConfig({ registrationDurationSec, maxParticipants });
+  } else {
+    assertValidSuggestionsConfig({
+      suggestionDurationSec,
+      votingDurationSec,
+      maxGames,
+    });
+  }
 
   const active = await db.event.findFirst({
     where: { channelId, status: { notIn: [...TERMINAL_STATUSES] } },
@@ -100,10 +150,12 @@ export async function createEvent(
   return db.event.create({
     data: {
       channelId,
-      type: "GAME_SELECTION",
+      type,
       suggestionDurationSec,
       votingDurationSec,
       maxGames,
+      registrationDurationSec,
+      maxParticipants,
       rounds: { create: { number: 1, phase: "SUGGESTIONS" } },
     },
     include: { rounds: true },
@@ -111,19 +163,15 @@ export async function createEvent(
 }
 
 /**
- * Edición de la configuración del evento (duraciones y máximo de juegos).
- * Solo permitida en DRAFT, antes de que arranque la primera fase.
+ * Edición de la configuración del evento, consciente del tipo: actualiza
+ * `type` y los campos propios de ese tipo. La configuración de otros tipos
+ * se conserva intacta en sus columnas. Solo permitida en DRAFT, antes de
+ * que arranque la primera fase.
  */
 export async function updateEventConfig(
   eventId: string,
-  config: {
-    suggestionDurationSec: number;
-    votingDurationSec: number;
-    maxGames: number;
-  }
+  config: EventConfigInput
 ): Promise<void> {
-  assertValidConfig(config);
-
   const event = await db.event.findUnique({ where: { id: eventId } });
   if (!event) throw new BusinessError("Evento no encontrado");
   if (event.status !== "DRAFT") {
@@ -132,14 +180,54 @@ export async function updateEventConfig(
     );
   }
 
-  await db.event.update({
-    where: { id: event.id },
-    data: {
+  const type = config.type ?? event.type;
+
+  if (type === "RAFFLE") {
+    if (
+      config.registrationDurationSec === undefined ||
+      config.maxParticipants === undefined
+    ) {
+      throw new BusinessError(
+        "El body debe incluir registrationDurationSec y maxParticipants"
+      );
+    }
+    assertValidRaffleConfig({
+      registrationDurationSec: config.registrationDurationSec,
+      maxParticipants: config.maxParticipants,
+    });
+    await db.event.update({
+      where: { id: event.id },
+      data: {
+        type,
+        registrationDurationSec: config.registrationDurationSec,
+        maxParticipants: config.maxParticipants,
+      },
+    });
+  } else {
+    if (
+      config.suggestionDurationSec === undefined ||
+      config.votingDurationSec === undefined ||
+      config.maxGames === undefined
+    ) {
+      throw new BusinessError(
+        "El body debe incluir suggestionDurationSec, votingDurationSec y maxGames"
+      );
+    }
+    assertValidSuggestionsConfig({
       suggestionDurationSec: config.suggestionDurationSec,
       votingDurationSec: config.votingDurationSec,
       maxGames: config.maxGames,
-    },
-  });
+    });
+    await db.event.update({
+      where: { id: event.id },
+      data: {
+        type,
+        suggestionDurationSec: config.suggestionDurationSec,
+        votingDurationSec: config.votingDurationSec,
+        maxGames: config.maxGames,
+      },
+    });
+  }
   await publishEventState(event.channelId);
 }
 
@@ -204,11 +292,13 @@ export async function getCurrentSnapshot(
     channelId,
     event: {
       id: event.id,
-      type: "GAME_SELECTION",
+      type: event.type,
       status: event.status,
       suggestionDurationSec: event.suggestionDurationSec,
       votingDurationSec: event.votingDurationSec,
       maxGames: event.maxGames,
+      registrationDurationSec: event.registrationDurationSec,
+      maxParticipants: event.maxParticipants,
     },
     round: round
       ? {

@@ -61,7 +61,7 @@
 
 - **User**: `id`, `twitchId` (único), `login`, `displayName`, `accessToken` (cifrado/en reposo solo server), `refreshToken`, `tokenExpiresAt`.
 - **Channel**: `id`, `twitchId` (único), `userId`.
-- **Event**: `id`, `channelId`, `type` (`GAME_SELECTION`), `status`, `suggestionDurationSec`, `votingDurationSec`, `maxGames` (default 10; limita las VotingOptions a las primeras N sugerencias), `createdAt`, `startedAt`, `endedAt`.
+- **Event**: `id`, `channelId`, `type` (`GAME_SELECTION` = Sugerencias y votos, `RAFFLE` = Sorteo), `status`, config de Sugerencias y votos (`suggestionDurationSec`, `votingDurationSec`, `maxGames` — default 10; limita las VotingOptions a las primeras N sugerencias), config del Sorteo (`registrationDurationSec` default 300, `maxParticipants` nullable = sin límite), `createdAt`, `startedAt`, `endedAt`. La configuración de cada tipo vive en sus propias columnas: cambiar de tipo no destruye la config del otro.
 - **Round**: `id`, `eventId`, `number`, `phase` (`SUGGESTIONS`/`VOTING`/`FINISHED`), `phaseStartedAt`, `phaseEndsAt`.
 - **Suggestion**: `id`, `roundId`, `twitchUserId`, `twitchLogin`, `gameName`, `normalizedName`, `createdAt`. Único: `(roundId, twitchUserId)` y `(roundId, normalizedName)`.
 - **SuggestionBan**: `id`, `roundId`, `normalizedName`, `createdAt`. Único: `(roundId, normalizedName)`.

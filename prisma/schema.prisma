@@ -13,6 +13,7 @@ datasource db {
 
 enum EventType {
   GAME_SELECTION
+  RAFFLE
 }
 
 enum EventStatus {
@@ -62,11 +63,14 @@ model Event {
   id                    String      @id @default(cuid())
   channelId             String
   channel               Channel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  type                  EventType
-  status                EventStatus @default(DRAFT)
-  suggestionDurationSec Int         @default(60)
-  votingDurationSec     Int         @default(60)
-  maxGames              Int         @default(10)
+  type                    EventType
+  status                  EventStatus @default(DRAFT)
+  suggestionDurationSec   Int         @default(60)
+  votingDurationSec       Int         @default(60)
+  maxGames                Int         @default(10)
+  // Configuración del sorteo (type = RAFFLE). maxParticipants null = sin límite.
+  registrationDurationSec Int         @default(300)
+  maxParticipants         Int?
   createdAt             DateTime    @default(now())
   startedAt             DateTime?
   endedAt               DateTime?
