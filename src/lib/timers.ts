@@ -39,8 +39,9 @@ export function schedulePhaseTimer(
 }
 
 /**
- * Al arrancar: reprograma los timers de los eventos que quedaron en
- * SUGGESTIONS_ACTIVE o VOTING_ACTIVE (p. ej. tras un reinicio del proceso).
+ * Al arrancar: reprograma los timers de los eventos que quedaron con una fase
+ * temporizada activa (p. ej. tras un reinicio del proceso): sugerencias,
+ * votación, inscripción del sorteo y la animación del ganador.
  */
 export async function rehydrateTimers(): Promise<void> {
   // Import perezoso: evita el ciclo events/service → timers → events/service
@@ -49,7 +50,16 @@ export async function rehydrateTimers(): Promise<void> {
   const { handlePhaseExpiry } = await import("@/lib/events/service");
 
   const events = await db.event.findMany({
-    where: { status: { in: ["SUGGESTIONS_ACTIVE", "VOTING_ACTIVE"] } },
+    where: {
+      status: {
+        in: [
+          "SUGGESTIONS_ACTIVE",
+          "VOTING_ACTIVE",
+          "REGISTRATION_OPEN",
+          "DRAWING",
+        ],
+      },
+    },
     include: { rounds: { orderBy: { number: "desc" }, take: 1 } },
   });
 

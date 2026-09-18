@@ -11,9 +11,17 @@ export type EventStatusName =
   | "VOTING_FINISHED"
   | "TIE"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  // Estados del sorteo (type = RAFFLE)
+  | "REGISTRATION_OPEN"
+  | "REGISTRATION_CLOSED"
+  | "DRAWING";
 
-export type RoundPhaseName = "SUGGESTIONS" | "VOTING" | "FINISHED";
+export type RoundPhaseName =
+  | "SUGGESTIONS"
+  | "VOTING"
+  | "FINISHED"
+  | "REGISTRATION";
 
 /**
  * Identificadores internos estables de los tipos de evento. Reflejan el enum
@@ -56,6 +64,12 @@ export interface VotingOptionView {
   votes: number;
 }
 
+export interface RaffleParticipantView {
+  id: string;
+  twitchLogin: string;
+  createdAt: string; // ISO 8601
+}
+
 /** Snapshot completo del estado del evento activo de un canal. */
 export interface EventStateSnapshot {
   channelId: string;
@@ -70,6 +84,8 @@ export interface EventStateSnapshot {
     registrationDurationSec: number;
     /** Config del sorteo (type = RAFFLE). null = sin límite. */
     maxParticipants: number | null;
+    /** ISO 8601; null mientras el evento no ha terminado. */
+    endedAt: string | null;
   } | null;
   round: {
     id: string;
@@ -87,6 +103,14 @@ export interface EventStateSnapshot {
   tiedPositions: number[];
   /** Ganador cuando status = COMPLETED. */
   winner: { position: number; gameName: string; votes: number } | null;
+  /** Participantes del sorteo (type = RAFFLE), en orden de inscripción. */
+  raffleParticipants: RaffleParticipantView[];
+  /**
+   * Ganador del sorteo. Solo se expone cuando status = COMPLETED: durante
+   * DRAWING el ganador ya existe en BD pero se oculta para no spoilear la
+   * animación.
+   */
+  raffleWinner: { twitchLogin: string } | null;
 }
 
 // Eventos Socket.IO. El servidor emite siempre `event:state` (snapshot
@@ -102,4 +126,5 @@ export const SOCKET_EVENTS = {
   TIE: "event:tie",
   COMPLETED: "event:completed",
   CANCELLED: "event:cancelled",
+  PARTICIPANT_ADDED: "raffle:participant-added",
 } as const;

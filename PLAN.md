@@ -67,21 +67,29 @@
 - **SuggestionBan**: `id`, `roundId`, `normalizedName`, `createdAt`. Único: `(roundId, normalizedName)`.
 - **VotingOption**: `id`, `roundId`, `position`, `suggestionId`, `gameName`. Único: `(roundId, position)` y `(roundId, suggestionId)`.
 - **Vote**: `id`, `roundId`, `votingOptionId`, `twitchUserId`, `createdAt`. Único: `(roundId, twitchUserId)`.
+- **RaffleParticipant** (sorteos): `id`, `eventId`, `twitchUserId` (identidad real), `twitchLogin`, `isWinner`, `excludedFromRedraw` (ganadores previos no pueden volver a ganar), `createdAt`. Único: `(eventId, twitchUserId)`.
 
-Las restricciones únicas en DB garantizan 1 sugerencia y 1 voto por usuario por ronda.
+Las restricciones únicas en DB garantizan 1 sugerencia y 1 voto por usuario por ronda, y 1 participación por usuario por sorteo.
 
 ## Máquina de estados (Event.status)
 
 ```
+Sugerencias y votos (GAME_SELECTION):
 DRAFT → SUGGESTIONS_ACTIVE → SUGGESTIONS_FINISHED → VOTING_ACTIVE → VOTING_FINISHED
                                                                       ↓            ↓
                                                                     TIE        COMPLETED
                                                                       ↓ (extender +60s, misma ronda, votos se conservan)
                                                                 VOTING_ACTIVE
-CANCELLED: desde DRAFT/SUGGESTIONS_ACTIVE/SUGGESTIONS_FINISHED, o automático si expira sugerencias sin participación.
+Sorteo (RAFFLE):
+DRAFT → REGISTRATION_OPEN → REGISTRATION_CLOSED → DRAWING → COMPLETED
+                                                              ↑          ↓
+                                                (volver a sortear, excluyendo ganadores previos)
+COMPLETED → REGISTRATION_OPEN: nuevo sorteo (borra participantes, misma config).
+CANCELLED: desde DRAFT/REGISTRATION_*/SUGGESTIONS_*, automático si expira la fase
+sin participación, y "Finalizar evento" desde COMPLETED.
 ```
 
-Transiciones validadas en una tabla explícita `allowedTransitions`; cualquier transición no listada lanza error.
+Transiciones validadas en una tabla explícita `allowedTransitions`; cualquier transición no listada lanza error. Los servicios además validan el `type` del evento (cada flujo solo arranca en su tipo).
 
 ## Flujos clave
 
@@ -109,6 +117,11 @@ Transiciones validadas en una tabla explícita `allowedTransitions`; cualquier t
 - `POST /api/events/[id]/extend-voting` (desde `TIE`, +60s)
 - `POST /api/events/[id]/cancel`
 - `POST /api/events/[id]/new-round`
+- `POST /api/events/[id]/start-raffle` (abre la inscripción del sorteo)
+- `POST /api/events/[id]/finish-registration` (cierra la inscripción; también automático por timer)
+- `POST /api/events/[id]/draw` (elige ganador → animación de 5s → `COMPLETED`)
+- `POST /api/events/[id]/redraw` (nuevo ganador excluyendo a los anteriores)
+- `POST /api/events/[id]/new-raffle` (borra participantes y reabre la inscripción)
 - `DELETE /api/suggestions/[id]` (eliminar + vetar)
 - `GET /api/overlay/[channelId]` — estado público sanitizado para el overlay (sin auth)
 

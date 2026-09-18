@@ -30,6 +30,6 @@ export const EVENT_TYPE_META: Record<
   RAFFLE: {
     label: "Sorteo",
     startLabel: "Iniciar sorteo",
-    title: "Sorteo en proceso",
+    title: "Sorteo",
   },
 };

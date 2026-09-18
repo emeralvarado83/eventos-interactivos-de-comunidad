@@ -1,11 +1,13 @@
 // Procesador de mensajes de chat (Fase 7, corrección del documento 2):
 // NO hay comandos. En SUGGESTIONS_ACTIVE cualquier texto válido es una
 // sugerencia; en VOTING_ACTIVE solo un entero dentro de [1, n] es un voto.
+// Excepción del sorteo: en REGISTRATION_OPEN solo "!participo" inscribe.
 // Todo lo demás se ignora silenciosamente: nunca se responde al chat.
 
 import { db } from "@/lib/db";
 import { addSuggestion } from "@/lib/suggestions/service";
 import { addVote } from "@/lib/voting/service";
+import { addParticipant, isParticipationCommand } from "@/lib/raffle/service";
 
 export interface ChatMessageInput {
   /** twitchId del canal (broadcaster) donde llegó el mensaje. */
@@ -32,7 +34,7 @@ export async function processChatMessage(input: ChatMessageInput): Promise<void>
   const event = await db.event.findFirst({
     where: {
       channelId: channel.id,
-      status: { in: ["SUGGESTIONS_ACTIVE", "VOTING_ACTIVE"] },
+      status: { in: ["SUGGESTIONS_ACTIVE", "VOTING_ACTIVE", "REGISTRATION_OPEN"] },
     },
     orderBy: { createdAt: "desc" },
     include: { rounds: { orderBy: { number: "desc" }, take: 1 } },
@@ -40,10 +42,14 @@ export async function processChatMessage(input: ChatMessageInput): Promise<void>
   const round = event?.rounds[0];
   if (!event || !round) return;
 
-  // Los servicios validan (texto, fase, duplicados, veto, rango) y emiten el
-  // snapshot actualizado cuando algo cambia; aquí solo se enruta.
+  // Los servicios validan (texto, fase, duplicados, veto, rango, límite) y
+  // emiten el snapshot actualizado cuando algo cambia; aquí solo se enruta.
   if (event.status === "SUGGESTIONS_ACTIVE") {
     await addSuggestion(round.id, input.twitchUserId, input.twitchLogin, input.text);
+  } else if (event.status === "REGISTRATION_OPEN") {
+    if (isParticipationCommand(input.text)) {
+      await addParticipant(event.id, input.twitchUserId, input.twitchLogin);
+    }
   } else {
     const position = parseVotePosition(input.text);
     if (position !== null) {

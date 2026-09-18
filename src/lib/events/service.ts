@@ -247,6 +247,8 @@ export async function getCurrentSnapshot(
     votingOptions: [],
     tiedPositions: [],
     winner: null,
+    raffleParticipants: [],
+    raffleWinner: null,
   };
 
   const event = await db.event.findFirst({
@@ -261,6 +263,7 @@ export async function getCurrentSnapshot(
           votingOptions: { include: { _count: { select: { votes: true } } } },
         },
       },
+      raffleParticipants: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!event) return empty;
@@ -288,6 +291,16 @@ export async function getCurrentSnapshot(
     }
   }
 
+  // Ganador del sorteo: fijado en BD al entrar en DRAWING, pero solo se
+  // revela cuando el evento llega a COMPLETED (fin de la animación).
+  let raffleWinner: EventStateSnapshot["raffleWinner"] = null;
+  if (event.type === "RAFFLE" && event.status === "COMPLETED") {
+    const winnerParticipant = event.raffleParticipants.find((p) => p.isWinner);
+    if (winnerParticipant) {
+      raffleWinner = { twitchLogin: winnerParticipant.twitchLogin };
+    }
+  }
+
   return {
     channelId,
     event: {
@@ -299,6 +312,7 @@ export async function getCurrentSnapshot(
       maxGames: event.maxGames,
       registrationDurationSec: event.registrationDurationSec,
       maxParticipants: event.maxParticipants,
+      endedAt: event.endedAt?.toISOString() ?? null,
     },
     round: round
       ? {
@@ -322,6 +336,12 @@ export async function getCurrentSnapshot(
     }),
     tiedPositions,
     winner,
+    raffleParticipants: event.raffleParticipants.map((p) => ({
+      id: p.id,
+      twitchLogin: p.twitchLogin,
+      createdAt: p.createdAt.toISOString(),
+    })),
+    raffleWinner,
   };
 }
 
@@ -350,6 +370,9 @@ function programPhaseTimer(eventId: string, endsAt: Date): void {
 /** DRAFT → SUGGESTIONS_ACTIVE: arranca la fase de sugerencias de la ronda 1. */
 export async function startSuggestions(eventId: string): Promise<void> {
   const { event, round } = await getEventWithCurrentRound(eventId);
+  if (event.type !== "GAME_SELECTION") {
+    throw new BusinessError("Este evento no es de sugerencias y votos");
+  }
   assertTransition(event.status, "SUGGESTIONS_ACTIVE");
 
   const now = new Date();
@@ -565,6 +588,9 @@ export async function cancelEvent(eventId: string): Promise<void> {
  */
 export async function newRound(eventId: string): Promise<void> {
   const { event, round } = await getEventWithCurrentRound(eventId);
+  if (event.type !== "GAME_SELECTION") {
+    throw new BusinessError("Este evento no es de sugerencias y votos");
+  }
   assertTransition(event.status, "SUGGESTIONS_ACTIVE");
 
   const now = new Date();
@@ -600,6 +626,19 @@ export async function handlePhaseExpiry(eventId: string): Promise<void> {
       await finishSuggestions(eventId, { automatic: true });
     } else if (event.status === "VOTING_ACTIVE") {
       await finishVoting(eventId);
+    } else if (
+      event.status === "REGISTRATION_OPEN" ||
+      event.status === "DRAWING"
+    ) {
+      // Import perezoso: evita el ciclo events/service ↔ raffle/service.
+      const { finishRegistration, completeDraw } = await import(
+        "@/lib/raffle/service"
+      );
+      if (event.status === "REGISTRATION_OPEN") {
+        await finishRegistration(eventId, { automatic: true });
+      } else {
+        await completeDraw(eventId);
+      }
     }
   } catch (err) {
     // Un cambio manual concurrente puede invalidar la transición: se loguea

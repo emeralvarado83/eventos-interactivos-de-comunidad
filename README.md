@@ -1,6 +1,6 @@
 # Plataforma de eventos interactivos para Twitch
 
-Plataforma web para que streamers de Twitch creen eventos interactivos (sugerencias y votaciones) con participación de su audiencia en tiempo real. Proyecto Next.js integrado: el frontend y el backend viven en el mismo repositorio, servidos por un servidor Node personalizado (`server.ts`) sobre el que se integrarán Socket.IO y el listener de Twitch EventSub en fases futuras.
+Plataforma web para que streamers de Twitch creen eventos interactivos (sugerencias y votaciones, sorteos) con participación de su audiencia en tiempo real. Proyecto Next.js integrado: el frontend y el backend viven en el mismo repositorio, servidos por un servidor Node personalizado (`server.ts`) sobre el que se integrarán Socket.IO y el listener de Twitch EventSub en fases futuras.
 
 ## Stack
 
@@ -86,7 +86,7 @@ Para obtener el `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET` del `.env`:
 1. Inicia sesión con Twitch desde la landing (`/`).
 2. En `/dashboard` crea un evento, abre la fase de sugerencias y controla la votación. Todo cambio se refleja en tiempo real vía Socket.IO.
 3. Añade en OBS un **Browser Source** con la URL del overlay (`/overlay/<channelId>`, visible y copiable desde el dashboard). El fondo es transparente.
-4. Participación del chat (sin comandos): durante las sugerencias, cualquier mensaje de texto válido es una sugerencia; durante la votación, un número (posición en la lista) es un voto.
+4. Participación del chat: durante las sugerencias, cualquier mensaje de texto válido es una sugerencia; durante la votación, un número (posición en la lista) es un voto; durante la inscripción de un sorteo, el comando `!participo` inscribe al espectador (una sola vez). Nunca se responde al chat.
 
 ## Estructura relevante
 
@@ -97,8 +97,9 @@ Para obtener el `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET` del `.env`:
 - `src/lib/twitch/` — cliente OAuth y gestor de EventSub (WebSocket, suscripción `channel.chat.message`, refresco de tokens, reconexión con backoff).
 - `src/lib/events/` — máquina de estados y servicio de eventos/rondas (transiciones, timers autoridad-servidor, snapshot).
 - `src/lib/suggestions/` y `src/lib/voting/` — reglas de sugerencias (normalización, veto) y de votación (posiciones estables, ranking, empate).
+- `src/lib/raffle/` — reglas del sorteo (inscripción con `!participo`, selección aleatoria del ganador, re-sorteo con exclusión de ganadores previos).
 - `src/lib/realtime/` — contratos compartidos y emisión Socket.IO (rooms por canal).
-- `src/lib/chat/processor.ts` — enrutado de mensajes del chat a sugerencias/votos (sin comandos).
+- `src/lib/chat/processor.ts` — enrutado de mensajes del chat a sugerencias/votos/participantes (sin respuestas al chat).
 - `src/app/dashboard/` — panel de control del streamer; `src/app/overlay/[channelId]/` — overlay público para OBS.
 - `tests/` — tests de Vitest sobre las reglas de negocio puras.
 - `docker-compose.yml` — PostgreSQL 16 para desarrollo.

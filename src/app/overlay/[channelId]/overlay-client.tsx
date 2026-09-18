@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useChannelSocket } from "@/hooks/use-channel-socket";
 import { formatCountdown, useCountdown } from "@/hooks/use-countdown";
-import type { VotingOptionView } from "@/lib/realtime/contracts";
+import type {
+  RaffleParticipantView,
+  VotingOptionView,
+} from "@/lib/realtime/contracts";
 
 const MAX_RECENT_SUGGESTIONS = 8;
 
@@ -63,7 +66,15 @@ function BoltIcon({ className }: { className?: string }) {
   );
 }
 
-function HeaderBanner({ countdown }: { countdown: number | null }) {
+function HeaderBanner({
+  countdown,
+  title,
+  subtitle,
+}: {
+  countdown: number | null;
+  title: ReactNode;
+  subtitle: string;
+}) {
   return (
     <header className="overlay-rise relative -rotate-1">
       <div
@@ -81,12 +92,10 @@ function HeaderBanner({ countdown }: { countdown: number | null }) {
       <div className="relative flex items-center justify-between gap-4 rounded-2xl border border-violet-400/50 bg-gradient-to-r from-[#2a1450] via-[#180c31] to-[#0d0819] px-5 py-3 shadow-[0_10px_35px_rgba(0,0,0,0.65)]">
         <div>
           <h1 className="font-display text-[27px] leading-none tracking-tight">
-            <span className="text-white">¿QUÉ </span>
-            <span className="text-violet-400">JUGAMOS</span>
-            <span className="text-white"> HOY?</span>
+            {title}
           </h1>
           <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.3em] text-violet-200/70">
-            Sugiere un juego • Vota por tu favorito
+            {subtitle}
           </p>
         </div>
         {countdown !== null && (
@@ -104,11 +113,14 @@ function HeaderBanner({ countdown }: { countdown: number | null }) {
 
 function Panel({
   title,
-  gameCount,
+  count,
+  countNoun,
   children,
 }: {
   title: string;
-  gameCount?: number;
+  count?: number;
+  /** Etiqueta del contador: ["juego", "juegos"], ["participante", "participantes"]. */
+  countNoun?: [string, string];
   children: ReactNode;
 }) {
   return (
@@ -118,10 +130,10 @@ function Panel({
           <CrownIcon className="h-4 w-4" />
           {title}
         </p>
-        {gameCount !== undefined && (
+        {count !== undefined && countNoun && (
           <span className="flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-violet-200">
             <UsersIcon className="h-3 w-3" />
-            {gameCount} {gameCount === 1 ? "juego" : "juegos"}
+            {count} {count === 1 ? countNoun[0] : countNoun[1]}
           </span>
         )}
       </div>
@@ -201,7 +213,11 @@ function FooterItem({
   );
 }
 
-function InstructionsFooter({ phase }: { phase: "suggest" | "vote" }) {
+function InstructionsFooter({
+  phase,
+}: {
+  phase: "suggest" | "vote" | "participate";
+}) {
   return (
     <footer className="overlay-rise flex divide-x divide-violet-500/25 rounded-2xl border border-violet-500/40 bg-[#0c0718]/92 shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
       {phase === "suggest" ? (
@@ -209,6 +225,12 @@ function InstructionsFooter({ phase }: { phase: "suggest" | "vote" }) {
           icon={<ChatIcon className="h-5 w-5" />}
           title="Para sugerir"
           description="Escribe el nombre del juego en el chat"
+        />
+      ) : phase === "participate" ? (
+        <FooterItem
+          icon={<ChatIcon className="h-5 w-5" />}
+          title="Para participar"
+          description="Escribe !participo en el chat"
         />
       ) : (
         <FooterItem
@@ -218,6 +240,48 @@ function InstructionsFooter({ phase }: { phase: "suggest" | "vote" }) {
         />
       )}
     </footer>
+  );
+}
+
+const GAME_SELECTION_TITLE = (
+  <>
+    <span className="text-white">¿QUÉ </span>
+    <span className="text-violet-400">JUGAMOS</span>
+    <span className="text-white"> HOY?</span>
+  </>
+);
+const GAME_SELECTION_SUBTITLE = "Sugiere un juego • Vota por tu favorito";
+const RAFFLE_TITLE = <span className="text-violet-400">SORTEO</span>;
+const RAFFLE_SUBTITLE = "Participa y gana";
+
+/** Animación "🎰 Seleccionando ganador…": cicla nombres hasta que llega COMPLETED. */
+function RaffleDrawingAnimation({
+  participants,
+}: {
+  participants: RaffleParticipantView[];
+}) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (participants.length === 0) return;
+    const id = setInterval(
+      () => setIndex((i) => (i + 1) % participants.length),
+      80
+    );
+    return () => clearInterval(id);
+  }, [participants.length]);
+
+  const current = participants[index % Math.max(1, participants.length)];
+
+  return (
+    <section className="overlay-rise overflow-hidden rounded-2xl border border-violet-400/60 bg-gradient-to-b from-[#241843] to-[#0c0718] px-6 py-8 text-center shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
+      <p className="text-[11px] font-black uppercase tracking-[0.35em] text-violet-300">
+        🎰 Seleccionando ganador…
+      </p>
+      <p className="mt-4 font-display text-3xl leading-tight text-white">
+        {current ? `@${current.twitchLogin}` : "…"}
+      </p>
+    </section>
   );
 }
 
@@ -255,10 +319,15 @@ export function OverlayClient({ channelId }: { channelId: string }) {
     >
       {status === "SUGGESTIONS_ACTIVE" && snapshot && (
         <>
-          <HeaderBanner countdown={countdown} />
+          <HeaderBanner
+            countdown={countdown}
+            title={GAME_SELECTION_TITLE}
+            subtitle={GAME_SELECTION_SUBTITLE}
+          />
           <Panel
             title="Sugerencias recientes"
-            gameCount={snapshot.suggestions.length}
+            count={snapshot.suggestions.length}
+            countNoun={["juego", "juegos"]}
           >
             {snapshot.suggestions.length === 0 ? (
               <p className="px-1 py-2 text-sm font-semibold text-violet-200/70">
@@ -291,10 +360,15 @@ export function OverlayClient({ channelId }: { channelId: string }) {
 
       {status === "VOTING_ACTIVE" && snapshot && (
         <>
-          <HeaderBanner countdown={countdown} />
+          <HeaderBanner
+            countdown={countdown}
+            title={GAME_SELECTION_TITLE}
+            subtitle={GAME_SELECTION_SUBTITLE}
+          />
           <Panel
             title="Lista de sugerencias"
-            gameCount={snapshot.votingOptions.length}
+            count={snapshot.votingOptions.length}
+            countNoun={["juego", "juegos"]}
           >
             {snapshot.votingOptions.map((o) => (
               <VotingRow
@@ -310,7 +384,11 @@ export function OverlayClient({ channelId }: { channelId: string }) {
 
       {(status === "SUGGESTIONS_FINISHED" || status === "VOTING_FINISHED") && (
         <>
-          <HeaderBanner countdown={null} />
+          <HeaderBanner
+            countdown={null}
+            title={GAME_SELECTION_TITLE}
+            subtitle={GAME_SELECTION_SUBTITLE}
+          />
           <Panel
             title={
               status === "SUGGESTIONS_FINISHED"
@@ -329,7 +407,11 @@ export function OverlayClient({ channelId }: { channelId: string }) {
 
       {status === "TIE" && snapshot && (
         <>
-          <HeaderBanner countdown={countdown} />
+          <HeaderBanner
+            countdown={countdown}
+            title={GAME_SELECTION_TITLE}
+            subtitle={GAME_SELECTION_SUBTITLE}
+          />
           <section className="overlay-rise overflow-hidden rounded-2xl border border-amber-300/60 bg-[#0c0718]/92 shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
             <div className="border-b border-amber-300/25 px-4 py-2.5">
               <p className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-300">
@@ -365,7 +447,11 @@ export function OverlayClient({ channelId }: { channelId: string }) {
 
       {status === "COMPLETED" && snapshot?.winner && (
         <>
-          <HeaderBanner countdown={null} />
+          <HeaderBanner
+            countdown={null}
+            title={GAME_SELECTION_TITLE}
+            subtitle={GAME_SELECTION_SUBTITLE}
+          />
           <section className="overlay-leader-glow overlay-rise rounded-2xl border border-amber-300/70 bg-gradient-to-b from-[#241843] to-[#0c0718] px-6 py-6 text-center">
             <CrownIcon className="mx-auto h-9 w-9 text-amber-300" />
             <p className="mt-2 text-[11px] font-black uppercase tracking-[0.35em] text-amber-300">
@@ -380,6 +466,90 @@ export function OverlayClient({ channelId }: { channelId: string }) {
             <p className="mt-2 text-sm font-bold text-violet-200/80">
               {snapshot.winner.votes}{" "}
               {snapshot.winner.votes === 1 ? "voto" : "votos"}
+            </p>
+          </section>
+        </>
+      )}
+
+      {status === "REGISTRATION_OPEN" && snapshot && (
+        <>
+          <HeaderBanner
+            countdown={countdown}
+            title={RAFFLE_TITLE}
+            subtitle={RAFFLE_SUBTITLE}
+          />
+          <Panel
+            title="Participantes recientes"
+            count={snapshot.raffleParticipants.length}
+            countNoun={["participante", "participantes"]}
+          >
+            {snapshot.raffleParticipants.length === 0 ? (
+              <p className="px-1 py-2 text-sm font-semibold text-violet-200/70">
+                Aún no hay participantes. ¡Sé la primera persona en participar!
+              </p>
+            ) : (
+              snapshot.raffleParticipants
+                .slice(-MAX_RECENT_SUGGESTIONS)
+                .reverse()
+                .map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-[#120c22] to-[#0d0819] px-3 py-2"
+                  >
+                    <PersonIcon className="h-4 w-4 shrink-0 text-violet-300" />
+                    <p className="min-w-0 flex-1 truncate text-base font-bold text-white">
+                      @{p.twitchLogin}
+                    </p>
+                  </div>
+                ))
+            )}
+          </Panel>
+          <InstructionsFooter phase="participate" />
+        </>
+      )}
+
+      {status === "REGISTRATION_CLOSED" && snapshot && (
+        <>
+          <HeaderBanner
+            countdown={null}
+            title={RAFFLE_TITLE}
+            subtitle={RAFFLE_SUBTITLE}
+          />
+          <Panel title="Inscripciones cerradas">
+            <p className="px-1 py-2 text-lg font-extrabold text-white">
+              ¡Sorteo listo! {snapshot.raffleParticipants.length}{" "}
+              {snapshot.raffleParticipants.length === 1
+                ? "participante"
+                : "participantes"}
+            </p>
+          </Panel>
+        </>
+      )}
+
+      {status === "DRAWING" && snapshot && (
+        <RaffleDrawingAnimation participants={snapshot.raffleParticipants} />
+      )}
+
+      {status === "COMPLETED" && snapshot?.raffleWinner && (
+        <>
+          <HeaderBanner
+            countdown={null}
+            title={RAFFLE_TITLE}
+            subtitle={RAFFLE_SUBTITLE}
+          />
+          <section className="overlay-leader-glow overlay-rise rounded-2xl border border-amber-300/70 bg-gradient-to-b from-[#241843] to-[#0c0718] px-6 py-6 text-center">
+            <CrownIcon className="mx-auto h-9 w-9 text-amber-300" />
+            <p className="mt-2 text-[11px] font-black uppercase tracking-[0.35em] text-amber-300">
+              🎉 ¡Ganador!
+            </p>
+            <p className="mt-3 font-display text-3xl leading-tight text-white">
+              🏆 @{snapshot.raffleWinner.twitchLogin}
+            </p>
+            <p className="mt-2 text-sm font-bold text-violet-200/80">
+              {snapshot.raffleParticipants.length}{" "}
+              {snapshot.raffleParticipants.length === 1
+                ? "participante"
+                : "participantes"}
             </p>
           </section>
         </>

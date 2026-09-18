@@ -25,12 +25,17 @@ enum EventStatus {
   TIE
   COMPLETED
   CANCELLED
+  // Estados del sorteo (type = RAFFLE)
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  DRAWING
 }
 
 enum RoundPhase {
   SUGGESTIONS
   VOTING
   FINISHED
+  REGISTRATION
 }
 
 model User {
@@ -75,6 +80,7 @@ model Event {
   startedAt             DateTime?
   endedAt               DateTime?
   rounds                Round[]
+  raffleParticipants    RaffleParticipant[]
 
   @@index([channelId, status])
   @@map("events")
@@ -152,4 +158,22 @@ model Vote {
 
   @@unique([roundId, twitchUserId])
   @@map("votes")
+}
+
+// Participantes de un sorteo (Event.type = RAFFLE). La identidad real es
+// twitchUserId (el login puede cambiar); la unicidad por (eventId,
+// twitchUserId) garantiza que !participo repetido no duplica.
+// excludedFromRedraw: ganadores anteriores que no pueden volver a ganar.
+model RaffleParticipant {
+  id                 String   @id @default(cuid())
+  eventId            String
+  event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  twitchUserId       String
+  twitchLogin        String
+  isWinner           Boolean  @default(false)
+  excludedFromRedraw Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  @@unique([eventId, twitchUserId])
+  @@map("raffle_participants")
 }

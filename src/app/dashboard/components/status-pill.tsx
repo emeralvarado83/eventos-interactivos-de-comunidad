@@ -33,6 +33,18 @@ const STATUS_STYLES: Record<EventStatusName, { label: string; classes: string }>
     label: "Cancelado",
     classes: "border-red-500/50 bg-red-500/10 text-red-300",
   },
+  REGISTRATION_OPEN: {
+    label: "Inscripciones abiertas",
+    classes: "border-emerald-500/50 bg-emerald-500/15 text-emerald-300",
+  },
+  REGISTRATION_CLOSED: {
+    label: "Inscripciones cerradas",
+    classes: "border-amber-400/50 bg-amber-400/10 text-amber-300",
+  },
+  DRAWING: {
+    label: "Seleccionando ganador…",
+    classes: "border-violet-400/60 bg-violet-500/15 text-violet-300",
+  },
 };
 
 export function StatusPill({ status }: { status: EventStatusName }) {

@@ -171,14 +171,19 @@ export function DashboardClient({
                   onAction={eventAction}
                   overlayUrl={overlayUrl}
                 />
-                {(status !== "DRAFT" || snapshot.suggestions.length > 0) && (
-                  <GamesCard
-                    snapshot={snapshot}
-                    isVotingPhase={isVotingPhase}
-                    pending={pending}
-                    onVeto={removeSuggestion}
-                  />
-                )}
+                {snapshot.event!.type === "RAFFLE"
+                  ? (status !== "DRAFT" ||
+                      snapshot.raffleParticipants.length > 0) && (
+                      <ParticipantsCard snapshot={snapshot} />
+                    )
+                  : (status !== "DRAFT" || snapshot.suggestions.length > 0) && (
+                      <GamesCard
+                        snapshot={snapshot}
+                        isVotingPhase={isVotingPhase}
+                        pending={pending}
+                        onVeto={removeSuggestion}
+                      />
+                    )}
               </>
             )}
 
@@ -252,7 +257,8 @@ function EventCard({
   const showCountdown =
     status === "SUGGESTIONS_ACTIVE" ||
     status === "VOTING_ACTIVE" ||
-    status === "TIE";
+    status === "TIE" ||
+    status === "REGISTRATION_OPEN";
 
   return (
     <section className={`${CARD} p-6`}>
@@ -294,6 +300,22 @@ function EventCard({
         </p>
       )}
 
+      {status === "REGISTRATION_CLOSED" && (
+        <p className="mt-3 text-sm text-zinc-400">
+          Sorteo listo · {snapshot.raffleParticipants.length}{" "}
+          {snapshot.raffleParticipants.length === 1
+            ? "participante"
+            : "participantes"}
+          . Las inscripciones han finalizado.
+        </p>
+      )}
+
+      {status === "DRAWING" && (
+        <p className="mt-3 text-sm font-semibold text-violet-300">
+          🎰 Seleccionando ganador…
+        </p>
+      )}
+
       {status === "VOTING_FINISHED" && (
         <p className="mt-3 text-sm text-zinc-400">
           Calculando los resultados de la votación…
@@ -323,26 +345,53 @@ function EventCard({
         </div>
       )}
 
+      {status === "COMPLETED" && snapshot.raffleWinner && (
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-amber-300/50 bg-amber-300/10 px-4 py-3">
+          <CrownIcon className="h-6 w-6 shrink-0 text-amber-300" />
+          <p className="text-lg font-bold text-white">
+            @{snapshot.raffleWinner.twitchLogin}
+            <span className="ml-2 text-sm font-semibold text-zinc-400">
+              {snapshot.raffleParticipants.length}{" "}
+              {snapshot.raffleParticipants.length === 1
+                ? "participante"
+                : "participantes"}
+              {event.endedAt &&
+                ` · ${new Date(event.endedAt).toLocaleDateString("es-ES")}`}
+            </span>
+          </p>
+        </div>
+      )}
+
       {/* Estadísticas de la ronda */}
       {status !== "DRAFT" && (
         <div className="mt-5 flex flex-wrap items-center gap-6">
-          <Stat
-            icon={<GamepadIcon className="h-5 w-5 text-violet-300" />}
-            value={snapshot.suggestions.length}
-            label="Juegos sugeridos"
-          />
-          {(status === "VOTING_ACTIVE" ||
-            status === "VOTING_FINISHED" ||
-            status === "TIE" ||
-            status === "COMPLETED") && (
+          {event.type === "RAFFLE" ? (
             <Stat
               icon={<UsersIcon className="h-5 w-5 text-violet-300" />}
-              value={snapshot.votingOptions.reduce(
-                (sum, o) => sum + o.votes,
-                0
-              )}
-              label="Votos totales"
+              value={snapshot.raffleParticipants.length}
+              label="Participantes inscritos"
             />
+          ) : (
+            <>
+              <Stat
+                icon={<GamepadIcon className="h-5 w-5 text-violet-300" />}
+                value={snapshot.suggestions.length}
+                label="Juegos sugeridos"
+              />
+              {(status === "VOTING_ACTIVE" ||
+                status === "VOTING_FINISHED" ||
+                status === "TIE" ||
+                status === "COMPLETED") && (
+                <Stat
+                  icon={<UsersIcon className="h-5 w-5 text-violet-300" />}
+                  value={snapshot.votingOptions.reduce(
+                    (sum, o) => sum + o.votes,
+                    0
+                  )}
+                  label="Votos totales"
+                />
+              )}
+            </>
           )}
         </div>
       )}
@@ -353,13 +402,13 @@ function EventCard({
           <>
             <button
               type="button"
-              disabled={pending !== null || event.type !== "GAME_SELECTION"}
-              title={
-                event.type === "RAFFLE"
-                  ? "La lógica del sorteo estará disponible próximamente"
-                  : undefined
+              disabled={pending !== null}
+              onClick={() =>
+                onAction(
+                  "start",
+                  event.type === "RAFFLE" ? "start-raffle" : "start-suggestions"
+                )
               }
-              onClick={() => onAction("start", "start-suggestions")}
               className={PRIMARY_BTN}
             >
               {pending === "start"
@@ -373,6 +422,56 @@ function EventCard({
               className={DANGER_BTN}
             >
               Cancelar evento
+            </button>
+          </>
+        )}
+
+        {status === "REGISTRATION_OPEN" && (
+          <>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("finish-registration", "finish-registration")}
+              className={PRIMARY_BTN}
+            >
+              {pending === "finish-registration"
+                ? "Cerrando…"
+                : "Cerrar sorteo"}
+            </button>
+            <ViewOverlayButton overlayUrl={overlayUrl} />
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("cancel", "cancel")}
+              className={DANGER_BTN}
+            >
+              Cancelar
+            </button>
+          </>
+        )}
+
+        {status === "REGISTRATION_CLOSED" && (
+          <>
+            <button
+              type="button"
+              disabled={pending !== null || snapshot.raffleParticipants.length === 0}
+              title={
+                snapshot.raffleParticipants.length === 0
+                  ? "No hay participantes inscritos"
+                  : undefined
+              }
+              onClick={() => onAction("draw", "draw")}
+              className={PRIMARY_BTN}
+            >
+              {pending === "draw" ? "Sorteando…" : "Realizar sorteo"}
+            </button>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("cancel", "cancel")}
+              className={DANGER_BTN}
+            >
+              Cancelar
             </button>
           </>
         )}
@@ -455,7 +554,7 @@ function EventCard({
           </>
         )}
 
-        {status === "COMPLETED" && (
+        {status === "COMPLETED" && event.type === "GAME_SELECTION" && (
           <button
             type="button"
             disabled={pending !== null}
@@ -464,6 +563,35 @@ function EventCard({
           >
             {pending === "new-round" ? "Creando…" : "Nueva ronda"}
           </button>
+        )}
+
+        {status === "COMPLETED" && event.type === "RAFFLE" && (
+          <>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("redraw", "redraw")}
+              className={SECONDARY_BTN}
+            >
+              {pending === "redraw" ? "Sorteando…" : "Volver a sortear"}
+            </button>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("new-raffle", "new-raffle")}
+              className={PRIMARY_BTN}
+            >
+              {pending === "new-raffle" ? "Creando…" : "Nuevo sorteo"}
+            </button>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("cancel", "cancel")}
+              className={DANGER_BTN}
+            >
+              Finalizar evento
+            </button>
+          </>
         )}
       </div>
     </section>
@@ -648,6 +776,52 @@ function GamesCard({
               );
             })
           ))}
+      </div>
+    </section>
+  );
+}
+
+/* --------------------------- Lista de participantes --------------------------- */
+
+function ParticipantsCard({ snapshot }: { snapshot: EventStateSnapshot }) {
+  return (
+    <section className={CARD}>
+      <div className="flex items-center justify-between border-b border-violet-500/15 px-5 py-3.5">
+        <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-violet-300">
+          Participantes inscritos
+        </h3>
+        <span className="text-[11px] font-semibold text-zinc-500">
+          Total de participantes: {snapshot.raffleParticipants.length}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 p-4">
+        {snapshot.raffleParticipants.length === 0 ? (
+          <p className="px-1 py-3 text-sm text-zinc-500">
+            Aún no hay participantes.
+          </p>
+        ) : (
+          snapshot.raffleParticipants.map((p, i) => (
+            <div
+              key={p.id}
+              className="flex items-center gap-3 rounded-xl border border-violet-500/20 bg-[#080512] px-3 py-2.5"
+            >
+              <span className="flex h-8 w-8 shrink-0 -skew-x-6 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400 to-violet-700">
+                <span className="skew-x-6 font-display text-sm leading-none text-white">
+                  {i + 1}
+                </span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-white">
+                  @{p.twitchLogin}
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  Inscrito {timeAgo(p.createdAt)}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </section>
   );
