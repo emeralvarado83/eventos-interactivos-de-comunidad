@@ -27,9 +27,21 @@ export type RoundPhaseName =
  * Identificadores internos estables de los tipos de evento. Reflejan el enum
  * EventType de Prisma; los textos visibles viven en lib/branding.ts.
  */
-export type EventTypeName = "GAME_SELECTION" | "RAFFLE";
+export type EventTypeName = "SUGGESTIONS" | "VOTING" | "RAFFLE";
 
-export const EVENT_TYPES: readonly EventTypeName[] = ["GAME_SELECTION", "RAFFLE"];
+export const EVENT_TYPES: readonly EventTypeName[] = [
+  "SUGGESTIONS",
+  "VOTING",
+  "RAFFLE",
+];
+
+/** Origen de las opciones de un evento de votación (type = VOTING). */
+export type OptionSourceName = "MANUAL" | "FROM_SUGGESTIONS";
+
+export const OPTION_SOURCES: readonly OptionSourceName[] = [
+  "MANUAL",
+  "FROM_SUGGESTIONS",
+];
 
 /**
  * Payload de guardado de configuración (PATCH /api/events/[id]): unión
@@ -37,10 +49,17 @@ export const EVENT_TYPES: readonly EventTypeName[] = ["GAME_SELECTION", "RAFFLE"
  */
 export type EventConfigPayload =
   | {
-      type: "GAME_SELECTION";
+      type: "SUGGESTIONS";
       suggestionDurationSec: number;
+    }
+  | {
+      type: "VOTING";
       votingDurationSec: number;
-      maxGames: number;
+      /** Tope de opciones importadas cuando optionSource = FROM_SUGGESTIONS. */
+      maxOptions: number;
+      optionSource: OptionSourceName;
+      /** Opciones escritas por el streamer; solo si optionSource = MANUAL. */
+      options?: string[];
     }
   | {
       type: "RAFFLE";
@@ -79,7 +98,11 @@ export interface EventStateSnapshot {
     status: EventStatusName;
     suggestionDurationSec: number;
     votingDurationSec: number;
-    maxGames: number;
+    maxOptions: number;
+    /** Origen de las opciones (type = VOTING). */
+    optionSource: OptionSourceName;
+    /** Opciones manuales del evento (type = VOTING, optionSource = MANUAL). */
+    manualOptions: string[];
     /** Config del sorteo (type = RAFFLE). Duración de la inscripción. */
     registrationDurationSec: number;
     /** Config del sorteo (type = RAFFLE). null = sin límite. */
@@ -101,7 +124,7 @@ export interface EventStateSnapshot {
   votingOptions: VotingOptionView[];
   /** Posiciones empatadas en cabeza cuando status = TIE. */
   tiedPositions: number[];
-  /** Ganador cuando status = COMPLETED. */
+  /** Ganador cuando status = COMPLETED; en VOTING_FINISHED es una vista previa pendiente de confirmar. */
   winner: { position: number; gameName: string; votes: number } | null;
   /** Participantes del sorteo (type = RAFFLE), en orden de inscripción. */
   raffleParticipants: RaffleParticipantView[];

@@ -224,7 +224,7 @@ function InstructionsFooter({
         <FooterItem
           icon={<ChatIcon className="h-5 w-5" />}
           title="Para sugerir"
-          description="Escribe el nombre del juego en el chat"
+          description="Escribe tu sugerencia en el chat"
         />
       ) : phase === "participate" ? (
         <FooterItem
@@ -236,21 +236,23 @@ function InstructionsFooter({
         <FooterItem
           icon={<HashIcon className="h-5 w-5" />}
           title="Para votar"
-          description="Escribe el número de tu juego favorito"
+          description="Escribe el número de tu opción favorita"
         />
       )}
     </footer>
   );
 }
 
-const GAME_SELECTION_TITLE = (
+const SUGGESTIONS_TITLE = (
   <>
     <span className="text-white">¿QUÉ </span>
-    <span className="text-violet-400">JUGAMOS</span>
-    <span className="text-white"> HOY?</span>
+    <span className="text-violet-400">SUGIERE</span>
+    <span className="text-white"> EL CHAT?</span>
   </>
 );
-const GAME_SELECTION_SUBTITLE = "Sugiere un juego • Vota por tu favorito";
+const SUGGESTIONS_SUBTITLE = "Escribe tu sugerencia en el chat";
+const VOTING_TITLE = <span className="text-violet-400">VOTACIÓN</span>;
+const VOTING_SUBTITLE = "Vota por tu opción favorita";
 const RAFFLE_TITLE = <span className="text-violet-400">SORTEO</span>;
 const RAFFLE_SUBTITLE = "Participa y gana";
 
@@ -321,8 +323,8 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         <>
           <HeaderBanner
             countdown={countdown}
-            title={GAME_SELECTION_TITLE}
-            subtitle={GAME_SELECTION_SUBTITLE}
+            title={SUGGESTIONS_TITLE}
+            subtitle={SUGGESTIONS_SUBTITLE}
           />
           <Panel
             title="Sugerencias recientes"
@@ -362,13 +364,13 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         <>
           <HeaderBanner
             countdown={countdown}
-            title={GAME_SELECTION_TITLE}
-            subtitle={GAME_SELECTION_SUBTITLE}
+            title={VOTING_TITLE}
+            subtitle={VOTING_SUBTITLE}
           />
           <Panel
-            title="Lista de sugerencias"
+            title="Opciones de voto"
             count={snapshot.votingOptions.length}
-            countNoun={["juego", "juegos"]}
+            countNoun={["opción", "opciones"]}
           >
             {snapshot.votingOptions.map((o) => (
               <VotingRow
@@ -382,12 +384,21 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         </>
       )}
 
-      {(status === "SUGGESTIONS_FINISHED" || status === "VOTING_FINISHED") && (
+      {(status === "SUGGESTIONS_FINISHED" || status === "VOTING_FINISHED") &&
+        snapshot && (
         <>
           <HeaderBanner
             countdown={null}
-            title={GAME_SELECTION_TITLE}
-            subtitle={GAME_SELECTION_SUBTITLE}
+            title={
+              status === "SUGGESTIONS_FINISHED"
+                ? SUGGESTIONS_TITLE
+                : VOTING_TITLE
+            }
+            subtitle={
+              status === "SUGGESTIONS_FINISHED"
+                ? SUGGESTIONS_SUBTITLE
+                : VOTING_SUBTITLE
+            }
           />
           <Panel
             title={
@@ -398,8 +409,8 @@ export function OverlayClient({ channelId }: { channelId: string }) {
           >
             <p className="px-1 py-2 text-lg font-extrabold text-white">
               {status === "SUGGESTIONS_FINISHED"
-                ? "¡Preparando la votación!"
-                : "¡Contando votos!"}
+                ? "¡Sugerencias cerradas!"
+                : "¡Votación cerrada!"}
             </p>
           </Panel>
         </>
@@ -409,8 +420,8 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         <>
           <HeaderBanner
             countdown={countdown}
-            title={GAME_SELECTION_TITLE}
-            subtitle={GAME_SELECTION_SUBTITLE}
+            title={VOTING_TITLE}
+            subtitle={VOTING_SUBTITLE}
           />
           <section className="overlay-rise overflow-hidden rounded-2xl border border-amber-300/60 bg-[#0c0718]/92 shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
             <div className="border-b border-amber-300/25 px-4 py-2.5">
@@ -449,8 +460,8 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         <>
           <HeaderBanner
             countdown={null}
-            title={GAME_SELECTION_TITLE}
-            subtitle={GAME_SELECTION_SUBTITLE}
+            title={VOTING_TITLE}
+            subtitle={VOTING_SUBTITLE}
           />
           <section className="overlay-leader-glow overlay-rise rounded-2xl border border-amber-300/70 bg-gradient-to-b from-[#241843] to-[#0c0718] px-6 py-6 text-center">
             <CrownIcon className="mx-auto h-9 w-9 text-amber-300" />
@@ -470,6 +481,54 @@ export function OverlayClient({ channelId }: { channelId: string }) {
           </section>
         </>
       )}
+
+      {status === "COMPLETED" &&
+        snapshot?.event?.type === "VOTING" &&
+        !snapshot.winner && (
+          <>
+            <HeaderBanner
+              countdown={null}
+              title={VOTING_TITLE}
+              subtitle={VOTING_SUBTITLE}
+            />
+            <Panel title="Votación cerrada">
+              <p className="px-1 py-2 text-lg font-extrabold text-white">
+                La votación terminó sin participación
+              </p>
+            </Panel>
+          </>
+        )}
+
+      {status === "COMPLETED" &&
+        snapshot?.event?.type === "SUGGESTIONS" && (
+          <>
+            <HeaderBanner
+              countdown={null}
+              title={SUGGESTIONS_TITLE}
+              subtitle={SUGGESTIONS_SUBTITLE}
+            />
+            <Panel
+              title="Sugerencias cerradas"
+              count={snapshot.suggestions.length}
+              countNoun={["sugerencia", "sugerencias"]}
+            >
+              {snapshot.suggestions.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-[#120c22] to-[#0d0819] px-3 py-2"
+                >
+                  <ChatIcon className="h-4 w-4 shrink-0 text-violet-300" />
+                  <p className="min-w-0 flex-1 truncate text-base font-bold text-white">
+                    {s.gameName}
+                    <span className="ml-2 text-sm font-semibold text-violet-300/70">
+                      @{s.twitchLogin}
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </Panel>
+          </>
+        )}
 
       {status === "REGISTRATION_OPEN" && snapshot && (
         <>

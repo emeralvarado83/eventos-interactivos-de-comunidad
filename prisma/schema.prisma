@@ -12,8 +12,14 @@ datasource db {
 }
 
 enum EventType {
-  GAME_SELECTION
+  SUGGESTIONS
+  VOTING
   RAFFLE
+}
+
+enum OptionSource {
+  MANUAL
+  FROM_SUGGESTIONS
 }
 
 enum EventStatus {
@@ -65,14 +71,17 @@ model Channel {
 }
 
 model Event {
-  id                    String      @id @default(cuid())
+  id                    String       @id @default(cuid())
   channelId             String
-  channel               Channel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  type                    EventType
-  status                  EventStatus @default(DRAFT)
-  suggestionDurationSec   Int         @default(60)
-  votingDurationSec       Int         @default(60)
-  maxGames                Int         @default(10)
+  channel               Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  type                  EventType
+  status                EventStatus  @default(DRAFT)
+  suggestionDurationSec Int          @default(60)
+  votingDurationSec     Int          @default(60)
+  // Tope de opciones importadas en VOTING con origen FROM_SUGGESTIONS.
+  maxOptions            Int          @default(10)
+  // Origen de las opciones de votación (type = VOTING).
+  optionSource          OptionSource @default(MANUAL)
   // Configuración del sorteo (type = RAFFLE). maxParticipants null = sin límite.
   registrationDurationSec Int         @default(300)
   maxParticipants         Int?
@@ -80,6 +89,7 @@ model Event {
   startedAt             DateTime?
   endedAt               DateTime?
   rounds                Round[]
+  eventOptions          EventOption[]
   raffleParticipants    RaffleParticipant[]
 
   @@index([channelId, status])
@@ -110,10 +120,12 @@ model Suggestion {
   round          Round          @relation(fields: [roundId], references: [id], onDelete: Cascade)
   twitchUserId   String
   twitchLogin    String
+  // Título oficial de IGDB cuando hubo match; si no, el texto del usuario.
   gameName       String
   normalizedName String
+  // Id del juego en IGDB (null si IGDB falló y se aceptó en fail-open).
+  igdbGameId     Int?
   createdAt      DateTime       @default(now())
-  votingOptions  VotingOption[]
 
   @@unique([roundId, twitchUserId])
   @@unique([roundId, normalizedName])
@@ -136,15 +148,27 @@ model VotingOption {
   roundId      String
   round        Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
   position     Int
-  suggestionId String
-  suggestion   Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Restrict)
   gameName     String
   createdAt    DateTime   @default(now())
   votes        Vote[]
 
   @@unique([roundId, position])
-  @@unique([roundId, suggestionId])
   @@map("voting_options")
+}
+
+// Opciones manuales de un evento de votación (Event.type = VOTING con
+// optionSource = MANUAL). Editables mientras el evento está en DRAFT; al
+// iniciar la votación se copian a VotingOption.
+model EventOption {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  position  Int
+  label     String
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, position])
+  @@map("event_options")
 }
 
 model Vote {

@@ -87,9 +87,8 @@ export function DashboardClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          type: "SUGGESTIONS",
           suggestionDurationSec: 60,
-          votingDurationSec: 60,
-          maxGames: 10,
         }),
       })
     );
@@ -132,12 +131,14 @@ export function DashboardClient({
   }
 
   const status = snapshot?.event?.status ?? null;
+  const eventType = snapshot?.event?.type ?? null;
   const hasEvent = status !== null && status !== "CANCELLED";
   const isVotingPhase =
-    status === "VOTING_ACTIVE" ||
-    status === "VOTING_FINISHED" ||
-    status === "TIE" ||
-    status === "COMPLETED";
+    eventType === "VOTING" &&
+    (status === "VOTING_ACTIVE" ||
+      status === "VOTING_FINISHED" ||
+      status === "TIE" ||
+      status === "COMPLETED");
 
   return (
     <div className="flex min-h-full flex-1 bg-[#0a0614] font-sans text-zinc-100">
@@ -176,7 +177,9 @@ export function DashboardClient({
                       snapshot.raffleParticipants.length > 0) && (
                       <ParticipantsCard snapshot={snapshot} />
                     )
-                  : (status !== "DRAFT" || snapshot.suggestions.length > 0) && (
+                  : (status !== "DRAFT" ||
+                      snapshot.suggestions.length > 0 ||
+                      snapshot.event!.manualOptions.length > 0) && (
                       <GamesCard
                         snapshot={snapshot}
                         isVotingPhase={isVotingPhase}
@@ -199,12 +202,14 @@ export function DashboardClient({
             <OverlayPreview overlayUrl={overlayUrl} empty={!hasEvent} />
             <ConfigPanel
               eventId={snapshot?.event?.id ?? null}
-              type={snapshot?.event?.type ?? "GAME_SELECTION"}
+              type={snapshot?.event?.type ?? "SUGGESTIONS"}
               suggestionDurationSec={
                 snapshot?.event?.suggestionDurationSec ?? 60
               }
               votingDurationSec={snapshot?.event?.votingDurationSec ?? 60}
-              maxGames={snapshot?.event?.maxGames ?? 10}
+              maxOptions={snapshot?.event?.maxOptions ?? 10}
+              optionSource={snapshot?.event?.optionSource ?? "MANUAL"}
+              manualOptions={snapshot?.event?.manualOptions ?? []}
               registrationDurationSec={
                 snapshot?.event?.registrationDurationSec ?? 300
               }
@@ -300,13 +305,18 @@ function EventCard({
         </p>
       )}
 
+      {status === "REGISTRATION_OPEN" && (
+        <p className="mt-3 text-sm text-zinc-400">
+          El chat se esta inscribiendo.
+        </p>
+      )}
+
       {status === "REGISTRATION_CLOSED" && (
         <p className="mt-3 text-sm text-zinc-400">
           Sorteo listo · {snapshot.raffleParticipants.length}{" "}
           {snapshot.raffleParticipants.length === 1
             ? "participante"
             : "participantes"}
-          . Las inscripciones han finalizado.
         </p>
       )}
 
@@ -316,20 +326,57 @@ function EventCard({
         </p>
       )}
 
+      {status === "SUGGESTIONS_ACTIVE" && (
+        <p className="mt-3 text-sm text-zinc-400">
+          El chat está enviando sugerencias.
+        </p>
+      )}
+
+      {status === "SUGGESTIONS_FINISHED" && (
+        <p className="mt-3 text-sm text-zinc-400">
+          Sugerencias cerradas. Puedes finalizar el evento e iniciar una nueva
+          ronda o cancelarlo.
+        </p>
+      )}
+
+      {status === "VOTING_ACTIVE" && (
+        <p className="mt-3 text-sm text-zinc-400">
+          El chat está votando por su opción favorita.
+        </p>
+      )}
+
       {status === "VOTING_FINISHED" && (
         <p className="mt-3 text-sm text-zinc-400">
-          Calculando los resultados de la votación…
+          Votación cerrada. Puedes finalizar el evento e iniciar una nueva
+          ronda o cancelarlo.
         </p>
       )}
 
       {status === "TIE" && (
         <p className="mt-3 text-sm font-semibold text-amber-300">
-          ¡Empate en cabeza! Puedes extender la votación o empezar una nueva
-          ronda.
+          ¡Empate en cabeza! Puedes extender la votación un minuto para
+          desempatar.
         </p>
       )}
 
-      {status === "COMPLETED" && snapshot.winner && (
+      {status === "COMPLETED" &&
+        event.type === "SUGGESTIONS" && (
+          <p className="mt-3 text-sm text-zinc-400">
+            Evento finalizado. Puedes iniciar una nueva ronda de sugerencias.
+          </p>
+        )}
+
+      {status === "COMPLETED" &&
+        event.type === "VOTING" &&
+        !snapshot.winner && (
+          <p className="mt-3 text-sm text-zinc-400">
+            La votación terminó sin participación. Puedes iniciar una nueva
+            ronda con las mismas opciones.
+          </p>
+        )}
+
+      {(status === "COMPLETED" || status === "VOTING_FINISHED") &&
+        snapshot.winner && (
         <div className="mt-4 flex items-center gap-3 rounded-xl border border-amber-300/50 bg-amber-300/10 px-4 py-3">
           <CrownIcon className="h-6 w-6 shrink-0 text-amber-300" />
           <p className="text-lg font-bold text-white">
@@ -371,26 +418,27 @@ function EventCard({
               value={snapshot.raffleParticipants.length}
               label="Participantes inscritos"
             />
+          ) : event.type === "SUGGESTIONS" ? (
+            <Stat
+              icon={<GamepadIcon className="h-5 w-5 text-violet-300" />}
+              value={snapshot.suggestions.length}
+              label="Sugerencias recibidas"
+            />
           ) : (
             <>
               <Stat
                 icon={<GamepadIcon className="h-5 w-5 text-violet-300" />}
-                value={snapshot.suggestions.length}
-                label="Juegos sugeridos"
+                value={snapshot.votingOptions.length}
+                label="Opciones en votación"
               />
-              {(status === "VOTING_ACTIVE" ||
-                status === "VOTING_FINISHED" ||
-                status === "TIE" ||
-                status === "COMPLETED") && (
-                <Stat
-                  icon={<UsersIcon className="h-5 w-5 text-violet-300" />}
-                  value={snapshot.votingOptions.reduce(
-                    (sum, o) => sum + o.votes,
-                    0
-                  )}
-                  label="Votos totales"
-                />
-              )}
+              <Stat
+                icon={<UsersIcon className="h-5 w-5 text-violet-300" />}
+                value={snapshot.votingOptions.reduce(
+                  (sum, o) => sum + o.votes,
+                  0
+                )}
+                label="Votos totales"
+              />
             </>
           )}
         </div>
@@ -406,7 +454,11 @@ function EventCard({
               onClick={() =>
                 onAction(
                   "start",
-                  event.type === "RAFFLE" ? "start-raffle" : "start-suggestions"
+                  event.type === "RAFFLE"
+                    ? "start-raffle"
+                    : event.type === "VOTING"
+                      ? "start-voting"
+                      : "start-suggestions"
                 )
               }
               className={PRIMARY_BTN}
@@ -503,10 +555,10 @@ function EventCard({
             <button
               type="button"
               disabled={pending !== null}
-              onClick={() => onAction("start-vote", "start-voting")}
+              onClick={() => onAction("complete", "complete")}
               className={PRIMARY_BTN}
             >
-              {pending === "start-vote" ? "Iniciando…" : "Iniciar votación"}
+              {pending === "complete" ? "Finalizando…" : "Finalizar evento"}
             </button>
             <button
               type="button"
@@ -530,31 +582,50 @@ function EventCard({
               {pending === "finish-vote" ? "Cerrando…" : "Cerrar votación"}
             </button>
             <ViewOverlayButton overlayUrl={overlayUrl} />
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("cancel", "cancel")}
+              className={DANGER_BTN}
+            >
+              Cancelar
+            </button>
           </>
         )}
 
-        {status === "TIE" && (
+        {status === "VOTING_FINISHED" && (
           <>
             <button
               type="button"
               disabled={pending !== null}
-              onClick={() => onAction("extend", "extend-voting")}
+              onClick={() => onAction("complete", "complete")}
               className={PRIMARY_BTN}
             >
-              {pending === "extend" ? "Añadiendo…" : "Añadir 1 minuto"}
+              {pending === "complete" ? "Finalizando…" : "Finalizar evento"}
             </button>
             <button
               type="button"
               disabled={pending !== null}
-              onClick={() => onAction("new-round", "new-round")}
-              className={SECONDARY_BTN}
+              onClick={() => onAction("cancel", "cancel")}
+              className={DANGER_BTN}
             >
-              Nueva ronda
+              Cancelar
             </button>
           </>
         )}
 
-        {status === "COMPLETED" && event.type === "GAME_SELECTION" && (
+        {status === "TIE" && (
+          <button
+            type="button"
+            disabled={pending !== null}
+            onClick={() => onAction("extend", "extend-voting")}
+            className={PRIMARY_BTN}
+          >
+            {pending === "extend" ? "Añadiendo…" : "Añadir 1 minuto"}
+          </button>
+        )}
+
+        {status === "COMPLETED" && event.type === "SUGGESTIONS" && (
           <button
             type="button"
             disabled={pending !== null}
@@ -562,6 +633,17 @@ function EventCard({
             className={PRIMARY_BTN}
           >
             {pending === "new-round" ? "Creando…" : "Nueva ronda"}
+          </button>
+        )}
+
+        {status === "COMPLETED" && event.type === "VOTING" && (
+          <button
+            type="button"
+            disabled={pending !== null}
+            onClick={() => onAction("new-voting-round", "new-voting-round")}
+            className={PRIMARY_BTN}
+          >
+            {pending === "new-voting-round" ? "Creando…" : "Nueva ronda"}
           </button>
         )}
 
@@ -647,28 +729,60 @@ function GamesCard({
   pending: string | null;
   onVeto: (suggestionId: string) => void;
 }) {
-  const canVeto = snapshot.event?.status === "SUGGESTIONS_ACTIVE";
+  const event = snapshot.event!;
+  const canVeto = event.status === "SUGGESTIONS_ACTIVE";
   const maxVotes = Math.max(0, ...snapshot.votingOptions.map((o) => o.votes));
-  const suggestionsByName = new Map(
-    snapshot.suggestions.map((s) => [s.gameName, s])
-  );
+  // Vista previa de las opciones manuales de un evento VOTING aún en DRAFT.
+  const manualPreview =
+    event.type === "VOTING" &&
+    !isVotingPhase &&
+    event.optionSource === "MANUAL";
+
+  const title =
+    event.type === "VOTING" ? "Opciones de voto" : "Sugerencias del chat";
+  const total = isVotingPhase
+    ? snapshot.votingOptions.length
+    : manualPreview
+      ? event.manualOptions.length
+      : snapshot.suggestions.length;
 
   return (
     <section className={CARD}>
       <div className="flex items-center justify-between border-b border-violet-500/15 px-5 py-3.5">
         <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-violet-300">
-          Juegos sugeridos
+          {title}
         </h3>
         <span className="text-[11px] font-semibold text-zinc-500">
-          Total de juegos en la lista:{" "}
-          {isVotingPhase
-            ? snapshot.votingOptions.length
-            : snapshot.suggestions.length}
+          Total: {total}
         </span>
       </div>
 
       <div className="flex flex-col gap-2 p-4">
+        {manualPreview &&
+          (event.manualOptions.length === 0 ? (
+            <p className="px-1 py-3 text-sm text-zinc-500">
+              Añade las opciones de la votación en el panel de configuración.
+            </p>
+          ) : (
+            event.manualOptions.map((label, i) => (
+              <div
+                key={`${i}-${label}`}
+                className="flex items-center gap-3 rounded-xl border border-violet-500/20 bg-[#080512] px-3 py-2.5"
+              >
+                <span className="flex h-8 w-8 shrink-0 -skew-x-6 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400 to-violet-700">
+                  <span className="skew-x-6 font-display text-sm leading-none text-white">
+                    {i + 1}
+                  </span>
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm font-bold text-white">
+                  {label}
+                </p>
+              </div>
+            ))
+          ))}
+
         {!isVotingPhase &&
+          !manualPreview &&
           (snapshot.suggestions.length === 0 ? (
             <p className="px-1 py-3 text-sm text-zinc-500">
               Aún no hay sugerencias del chat.
@@ -715,7 +829,6 @@ function GamesCard({
           ) : (
             snapshot.votingOptions.map((o) => {
               const isLeader = o.votes > 0 && o.votes === maxVotes;
-              const suggestion = suggestionsByName.get(o.gameName);
               return (
                 <div
                   key={o.id}
@@ -745,12 +858,6 @@ function GamesCard({
                       <p className="truncate text-sm font-bold text-white">
                         {o.gameName}
                       </p>
-                      {suggestion && (
-                        <p className="text-[11px] text-zinc-500">
-                          Sugerido por: @{suggestion.twitchLogin} ·{" "}
-                          {timeAgo(suggestion.createdAt)}
-                        </p>
-                      )}
                     </div>
                     {isLeader && (
                       <CrownIcon className="h-4 w-4 shrink-0 text-amber-300" />

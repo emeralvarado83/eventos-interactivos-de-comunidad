@@ -53,19 +53,16 @@ describe("resolveOutcome", () => {
     expect(outcome).toEqual({ type: "tie", tiedPositions: [1, 2] });
   });
 
-  it("empate a cero con más de una opción es TIE", () => {
+  it("sin votos no hay ganador ni empate: el resultado es 'none'", () => {
     const outcome = resolveOutcome([
       { position: 1, gameName: "A", votes: 0 },
       { position: 2, gameName: "B", votes: 0 },
     ]);
-    expect(outcome).toEqual({ type: "tie", tiedPositions: [1, 2] });
+    expect(outcome).toEqual({ type: "none" });
   });
 
-  it("una sola opción siempre gana, incluso con 0 votos", () => {
+  it("una sola opción con 0 votos también es 'none' (no hubo participación)", () => {
     const outcome = resolveOutcome([{ position: 1, gameName: "A", votes: 0 }]);
-    expect(outcome).toEqual({
-      type: "winner",
-      winner: { position: 1, gameName: "A", votes: 0 },
-    });
+    expect(outcome).toEqual({ type: "none" });
   });
 });

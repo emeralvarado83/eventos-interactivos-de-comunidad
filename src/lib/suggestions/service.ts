@@ -1,11 +1,15 @@
-// Reglas de sugerencias (Fase 6): normalización, validación de texto, alta
-// desde el chat y veto desde el dashboard. En SUGGESTIONS_ACTIVE cualquier
-// mensaje válido es una sugerencia; los rechazos (duplicado, veto previo,
-// fase incorrecta) son SILENCIOSOS: nunca se responde al chat.
+// Reglas de sugerencias (Fase 6): normalización, validación de texto,
+// validación contra el catálogo IGDB (canoniza typos, rechaza basura,
+// fail-open si IGDB cae), alta desde el chat y veto desde el dashboard.
+// En SUGGESTIONS_ACTIVE cualquier mensaje válido es una sugerencia; los
+// rechazos (duplicado, veto previo, fase incorrecta, juego no encontrado)
+// son SILENCIOSOS: nunca se responde al chat.
 
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { config } from "@/lib/config";
 import { BusinessError } from "@/lib/errors";
+import { resolveGameName } from "@/lib/igdb/games";
 import { SOCKET_EVENTS, type SuggestionView } from "@/lib/realtime/contracts";
 import { publishEventState } from "@/lib/events/service";
 
@@ -34,7 +38,15 @@ export type AddSuggestionResult = "added" | "ignored";
 /**
  * Registra una sugerencia en la ronda. Devuelve "ignored" (sin lanzar) para
  * todos los rechazos silenciosos: texto inválido, fase incorrecta, nombre
- * vetado o duplicado (mismo usuario o mismo nombre normalizado, P2002).
+ * vetado, duplicado (mismo usuario o mismo nombre normalizado, P2002) o
+ * texto que no corresponde a ningún juego del catálogo IGDB.
+ *
+ * Validación IGDB: el texto se resuelve contra el catálogo y, si hay match,
+ * se guarda el título OFICIAL (canoniza typos; además los typos de distintos
+ * usuarios deduplican solos al compartir nombre normalizado canónico y el
+ * veto cubre todas las grafías). Si IGDB no encuentra nada parecido, se
+ * rechaza silenciosamente. Si IGDB FALLA (timeout, red, 5xx), se acepta el
+ * texto del usuario tal cual: fail-open, el evento nunca depende de IGDB.
  */
 export async function addSuggestion(
   roundId: string,
@@ -56,7 +68,23 @@ export async function addSuggestion(
     return "ignored";
   }
 
-  const normalizedName = normalizeGameName(gameName);
+  let finalGameName = gameName.trim();
+  let igdbGameId: number | null = null;
+  if (config.igdbValidationEnabled) {
+    try {
+      const match = await resolveGameName(gameName);
+      if (!match) return "ignored";
+      finalGameName = match.officialName;
+      igdbGameId = match.igdbGameId;
+    } catch (err) {
+      console.error(
+        "IGDB no disponible; se acepta la sugerencia sin validar:",
+        err
+      );
+    }
+  }
+
+  const normalizedName = normalizeGameName(finalGameName);
   const banned = await db.suggestionBan.findUnique({
     where: { roundId_normalizedName: { roundId, normalizedName } },
   });
@@ -69,8 +97,9 @@ export async function addSuggestion(
         roundId,
         twitchUserId,
         twitchLogin,
-        gameName: gameName.trim(),
+        gameName: finalGameName,
         normalizedName,
+        igdbGameId,
       },
     });
   } catch (err) {
@@ -94,8 +123,7 @@ export async function addSuggestion(
 
 /**
  * Veto desde el dashboard: borra la sugerencia y crea el SuggestionBan de la
- * ronda en una transacción. Prohibido una vez iniciada la votación (la
- * sugerencia ya quedó fijada como VotingOption).
+ * ronda en una transacción. Prohibido fuera de la fase de sugerencias.
  */
 export async function removeAndBanSuggestion(
   suggestionId: string

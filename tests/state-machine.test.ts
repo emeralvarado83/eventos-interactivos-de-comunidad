@@ -15,18 +15,21 @@ describe("máquina de estados", () => {
   it("admite exactamente las transiciones listadas", () => {
     const valid: Array<[EventStatusName, EventStatusName]> = [
       ["DRAFT", "SUGGESTIONS_ACTIVE"],
+      ["DRAFT", "VOTING_ACTIVE"],
       ["DRAFT", "REGISTRATION_OPEN"],
       ["DRAFT", "CANCELLED"],
       ["SUGGESTIONS_ACTIVE", "SUGGESTIONS_FINISHED"],
       ["SUGGESTIONS_ACTIVE", "CANCELLED"],
-      ["SUGGESTIONS_FINISHED", "VOTING_ACTIVE"],
+      ["SUGGESTIONS_FINISHED", "COMPLETED"],
       ["SUGGESTIONS_FINISHED", "CANCELLED"],
       ["VOTING_ACTIVE", "VOTING_FINISHED"],
+      ["VOTING_ACTIVE", "CANCELLED"],
       ["VOTING_FINISHED", "TIE"],
       ["VOTING_FINISHED", "COMPLETED"],
+      ["VOTING_FINISHED", "CANCELLED"],
       ["TIE", "VOTING_ACTIVE"],
-      ["TIE", "SUGGESTIONS_ACTIVE"],
       ["COMPLETED", "SUGGESTIONS_ACTIVE"],
+      ["COMPLETED", "VOTING_ACTIVE"],
       ["COMPLETED", "REGISTRATION_OPEN"],
       ["COMPLETED", "DRAWING"],
       ["COMPLETED", "CANCELLED"],
@@ -53,8 +56,15 @@ describe("máquina de estados", () => {
         }
       }
     }
-    // 121 pares posibles (11 estados) - 21 válidas.
-    expect(rejected).toBe(100);
+    // 121 pares posibles (11 estados) - 24 válidas.
+    expect(rejected).toBe(97);
+  });
+
+  it("rechaza las transiciones del antiguo flujo combinado", () => {
+    // SUGGESTIONS_FINISHED ya no puede pasar a votación: son eventos
+    // independientes. TIE ya no abre una nueva ronda de sugerencias.
+    expect(canTransition("SUGGESTIONS_FINISHED", "VOTING_ACTIVE")).toBe(false);
+    expect(canTransition("TIE", "SUGGESTIONS_ACTIVE")).toBe(false);
   });
 
   it("CANCELLED es un pozo sin transiciones de salida", () => {

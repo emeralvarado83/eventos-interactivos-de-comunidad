@@ -19,12 +19,12 @@ describe("parseEventConfig", () => {
       parseEventConfig({
         suggestionDurationSec: 120,
         votingDurationSec: 90,
-        maxGames: 5,
+        maxOptions: 5,
       })
     ).toEqual({
       suggestionDurationSec: 120,
       votingDurationSec: 90,
-      maxGames: 5,
+      maxOptions: 5,
     });
   });
 
@@ -49,31 +49,83 @@ describe("parseEventConfig", () => {
     );
   });
 
-  it("rechaza maxGames fuera de rango o no entero", () => {
-    expect(() => parseEventConfig({ maxGames: 0 })).toThrow(/maxGames/);
-    expect(() => parseEventConfig({ maxGames: 51 })).toThrow(/maxGames/);
-    expect(() => parseEventConfig({ maxGames: 2.5 })).toThrow(/maxGames/);
-    expect(() => parseEventConfig({ maxGames: "10" })).toThrow(/maxGames/);
+  it("rechaza maxOptions fuera de rango o no entero", () => {
+    expect(() => parseEventConfig({ maxOptions: 0 })).toThrow(/maxOptions/);
+    expect(() => parseEventConfig({ maxOptions: 51 })).toThrow(/maxOptions/);
+    expect(() => parseEventConfig({ maxOptions: 2.5 })).toThrow(/maxOptions/);
+    expect(() => parseEventConfig({ maxOptions: "10" })).toThrow(/maxOptions/);
   });
 
-  it("acepta maxGames en los bordes del rango", () => {
-    expect(parseEventConfig({ maxGames: 1 })).toEqual({ maxGames: 1 });
-    expect(parseEventConfig({ maxGames: 50 })).toEqual({ maxGames: 50 });
+  it("acepta maxOptions en los bordes del rango", () => {
+    expect(parseEventConfig({ maxOptions: 1 })).toEqual({ maxOptions: 1 });
+    expect(parseEventConfig({ maxOptions: 50 })).toEqual({ maxOptions: 50 });
   });
 
   it("acepta un tipo de evento válido", () => {
-    expect(parseEventConfig({ type: "GAME_SELECTION" })).toEqual({
-      type: "GAME_SELECTION",
+    expect(parseEventConfig({ type: "SUGGESTIONS" })).toEqual({
+      type: "SUGGESTIONS",
     });
+    expect(parseEventConfig({ type: "VOTING" })).toEqual({ type: "VOTING" });
     expect(parseEventConfig({ type: "RAFFLE" })).toEqual({ type: "RAFFLE" });
   });
 
   it("rechaza tipos de evento desconocidos o no string", () => {
+    expect(() => parseEventConfig({ type: "GAME_SELECTION" })).toThrow(/type/);
     expect(() => parseEventConfig({ type: "poll" })).toThrow(/type/);
-    expect(() => parseEventConfig({ type: "suggestions_votes" })).toThrow(
-      /type/
-    );
     expect(() => parseEventConfig({ type: 42 })).toThrow(/type/);
+  });
+
+  it("acepta un optionSource válido", () => {
+    expect(parseEventConfig({ optionSource: "MANUAL" })).toEqual({
+      optionSource: "MANUAL",
+    });
+    expect(parseEventConfig({ optionSource: "FROM_SUGGESTIONS" })).toEqual({
+      optionSource: "FROM_SUGGESTIONS",
+    });
+  });
+
+  it("rechaza un optionSource desconocido", () => {
+    expect(() => parseEventConfig({ optionSource: "CHAT" })).toThrow(
+      /optionSource/
+    );
+    expect(() => parseEventConfig({ optionSource: 1 })).toThrow(/optionSource/);
+  });
+
+  it("acepta opciones manuales válidas y les aplica trim", () => {
+    expect(
+      parseEventConfig({ options: ["  Celeste ", "Hades", "Dead Cells"] })
+    ).toEqual({ options: ["Celeste", "Hades", "Dead Cells"] });
+  });
+
+  it("rechaza listas de opciones demasiado cortas o largas", () => {
+    expect(() => parseEventConfig({ options: ["Celeste"] })).toThrow(
+      /entre 2 y 50 opciones/
+    );
+    expect(() => parseEventConfig({ options: [] })).toThrow(
+      /entre 2 y 50 opciones/
+    );
+    expect(() =>
+      parseEventConfig({ options: Array.from({ length: 51 }, (_, i) => `Juego ${i}`) })
+    ).toThrow(/entre 2 y 50 opciones/);
+    expect(() => parseEventConfig({ options: "Celeste" })).toThrow(/array/);
+  });
+
+  it("rechaza opciones con texto inválido", () => {
+    expect(() => parseEventConfig({ options: ["a", "Celeste"] })).toThrow(
+      /entre 2 y 60 caracteres/
+    );
+    expect(() => parseEventConfig({ options: ["Celeste", "x".repeat(61)] })).toThrow(
+      /entre 2 y 60 caracteres/
+    );
+    expect(() => parseEventConfig({ options: ["Celeste", 42] })).toThrow(
+      /entre 2 y 60 caracteres/
+    );
+  });
+
+  it("rechaza opciones duplicadas (ignorando mayúsculas y espacios)", () => {
+    expect(() =>
+      parseEventConfig({ options: ["Celeste", "  CELESTE "] })
+    ).toThrow(/duplicadas/);
   });
 
   it("acepta la configuración del sorteo", () => {

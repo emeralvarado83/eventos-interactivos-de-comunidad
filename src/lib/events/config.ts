@@ -3,13 +3,21 @@
 // exportar helpers (Next solo admite los métodos HTTP), por eso vive aquí.
 
 import { BusinessError } from "@/lib/errors";
-import { EVENT_TYPES, type EventTypeName } from "@/lib/realtime/contracts";
+import {
+  EVENT_TYPES,
+  OPTION_SOURCES,
+  type EventTypeName,
+  type OptionSourceName,
+} from "@/lib/realtime/contracts";
 
 export interface EventConfigInput {
   type?: EventTypeName;
   suggestionDurationSec?: number;
   votingDurationSec?: number;
-  maxGames?: number;
+  maxOptions?: number;
+  optionSource?: OptionSourceName;
+  /** Opciones manuales de un evento VOTING (optionSource = MANUAL). */
+  options?: string[];
   registrationDurationSec?: number;
   /** null explícito = sin límite de participantes. */
   maxParticipants?: number | null;
@@ -24,6 +32,14 @@ function isValidDuration(value: unknown): value is number {
   );
 }
 
+export function isValidOptionLabel(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length >= 2 &&
+    value.trim().length <= 60
+  );
+}
+
 export function parseEventConfig(body: unknown): EventConfigInput {
   if (body === null || body === undefined) return {};
   if (typeof body !== "object" || Array.isArray(body)) {
@@ -33,7 +49,9 @@ export function parseEventConfig(body: unknown): EventConfigInput {
     type,
     suggestionDurationSec,
     votingDurationSec,
-    maxGames,
+    maxOptions,
+    optionSource,
+    options,
     registrationDurationSec,
     maxParticipants,
   } = body as Record<string, unknown>;
@@ -59,10 +77,45 @@ export function parseEventConfig(body: unknown): EventConfigInput {
   }
 
   if (
-    maxGames !== undefined &&
-    (typeof maxGames !== "number" || !Number.isInteger(maxGames) || maxGames < 1 || maxGames > 50)
+    maxOptions !== undefined &&
+    (typeof maxOptions !== "number" ||
+      !Number.isInteger(maxOptions) ||
+      maxOptions < 1 ||
+      maxOptions > 50)
   ) {
-    throw new BusinessError("maxGames debe ser un entero entre 1 y 50");
+    throw new BusinessError("maxOptions debe ser un entero entre 1 y 50");
+  }
+
+  if (
+    optionSource !== undefined &&
+    (typeof optionSource !== "string" ||
+      !(OPTION_SOURCES as readonly string[]).includes(optionSource))
+  ) {
+    throw new BusinessError(
+      `optionSource debe ser uno de: ${OPTION_SOURCES.join(", ")}`
+    );
+  }
+
+  if (options !== undefined) {
+    if (!Array.isArray(options)) {
+      throw new BusinessError("options debe ser un array de textos");
+    }
+    if (options.length < 2 || options.length > 50) {
+      throw new BusinessError("options debe tener entre 2 y 50 opciones");
+    }
+    const seen = new Set<string>();
+    for (const option of options) {
+      if (!isValidOptionLabel(option)) {
+        throw new BusinessError(
+          "Cada opción debe ser un texto de entre 2 y 60 caracteres"
+        );
+      }
+      const normalized = (option as string).trim().toLowerCase();
+      if (seen.has(normalized)) {
+        throw new BusinessError("Las opciones no pueden estar duplicadas");
+      }
+      seen.add(normalized);
+    }
   }
 
   if (
@@ -82,7 +135,12 @@ export function parseEventConfig(body: unknown): EventConfigInput {
     type: type as EventTypeName | undefined,
     suggestionDurationSec: suggestionDurationSec as number | undefined,
     votingDurationSec: votingDurationSec as number | undefined,
-    maxGames: maxGames as number | undefined,
+    maxOptions: maxOptions as number | undefined,
+    optionSource: optionSource as OptionSourceName | undefined,
+    options:
+      options === undefined
+        ? undefined
+        : (options as string[]).map((o) => o.trim()),
     registrationDurationSec: registrationDurationSec as number | undefined,
     maxParticipants:
       maxParticipants === undefined

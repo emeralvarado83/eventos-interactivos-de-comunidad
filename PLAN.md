@@ -48,7 +48,8 @@
 │   │   ├── auth/                # sesión JWT, guard de autorización por canal
 │   │   ├── twitch/              # cliente OAuth, EventSub WS, validación de tokens
 │   │   ├── events/              # máquina de estados, servicios de evento/ronda
-│   │   ├── suggestions/         # reglas de sugerencias (normalización, veto)
+│   │   ├── suggestions/         # reglas de sugerencias (normalización, validación IGDB, veto)
+│   │   ├── igdb/                # validación contra el catálogo IGDB (app token, caché, matching difuso)
 │   │   ├── voting/              # reglas de votos, ranking, empate
 │   │   ├── realtime/            # emisión Socket.IO (rooms por channelId)
 │   │   ├── timers.ts            # temporizadores autoridad-servidor + rehidratación al arranque
@@ -61,11 +62,12 @@
 
 - **User**: `id`, `twitchId` (único), `login`, `displayName`, `accessToken` (cifrado/en reposo solo server), `refreshToken`, `tokenExpiresAt`.
 - **Channel**: `id`, `twitchId` (único), `userId`.
-- **Event**: `id`, `channelId`, `type` (`GAME_SELECTION` = Sugerencias y votos, `RAFFLE` = Sorteo), `status`, config de Sugerencias y votos (`suggestionDurationSec`, `votingDurationSec`, `maxGames` — default 10; limita las VotingOptions a las primeras N sugerencias), config del Sorteo (`registrationDurationSec` default 300, `maxParticipants` nullable = sin límite), `createdAt`, `startedAt`, `endedAt`. La configuración de cada tipo vive en sus propias columnas: cambiar de tipo no destruye la config del otro.
+- **Event**: `id`, `channelId`, `type` (`SUGGESTIONS` = Sugerencias, `VOTING` = Votación, `RAFFLE` = Sorteo), `status`, config de Sugerencias (`suggestionDurationSec`), config de Votación (`votingDurationSec`, `maxOptions` — default 10; limita las opciones importadas con origen `FROM_SUGGESTIONS`, `optionSource` = `MANUAL` | `FROM_SUGGESTIONS`), config del Sorteo (`registrationDurationSec` default 300, `maxParticipants` nullable = sin límite), `createdAt`, `startedAt`, `endedAt`. La configuración de cada tipo vive en sus propias columnas: cambiar de tipo no destruye la config del otro.
 - **Round**: `id`, `eventId`, `number`, `phase` (`SUGGESTIONS`/`VOTING`/`FINISHED`), `phaseStartedAt`, `phaseEndsAt`.
-- **Suggestion**: `id`, `roundId`, `twitchUserId`, `twitchLogin`, `gameName`, `normalizedName`, `createdAt`. Único: `(roundId, twitchUserId)` y `(roundId, normalizedName)`.
+- **Suggestion**: `id`, `roundId`, `twitchUserId`, `twitchLogin`, `gameName` (título oficial de IGDB si hubo match), `normalizedName`, `igdbGameId` (nullable; null si fail-open), `createdAt`. Único: `(roundId, twitchUserId)` y `(roundId, normalizedName)`.
 - **SuggestionBan**: `id`, `roundId`, `normalizedName`, `createdAt`. Único: `(roundId, normalizedName)`.
-- **VotingOption**: `id`, `roundId`, `position`, `suggestionId`, `gameName`. Único: `(roundId, position)` y `(roundId, suggestionId)`.
+- **EventOption** (votación manual): `id`, `eventId`, `position`, `label`, `createdAt`. Único: `(eventId, position)`. Editable en DRAFT; al iniciar la votación se copia a VotingOption.
+- **VotingOption**: `id`, `roundId`, `position`, `gameName`. Único: `(roundId, position)`. Las opciones nacen de las EventOption del streamer (MANUAL) o de las sugerencias del último evento SUGGESTIONS completado (FROM_SUGGESTIONS).
 - **Vote**: `id`, `roundId`, `votingOptionId`, `twitchUserId`, `createdAt`. Único: `(roundId, twitchUserId)`.
 - **RaffleParticipant** (sorteos): `id`, `eventId`, `twitchUserId` (identidad real), `twitchLogin`, `isWinner`, `excludedFromRedraw` (ganadores previos no pueden volver a ganar), `createdAt`. Único: `(eventId, twitchUserId)`.
 
@@ -74,18 +76,24 @@ Las restricciones únicas en DB garantizan 1 sugerencia y 1 voto por usuario por
 ## Máquina de estados (Event.status)
 
 ```
-Sugerencias y votos (GAME_SELECTION):
-DRAFT → SUGGESTIONS_ACTIVE → SUGGESTIONS_FINISHED → VOTING_ACTIVE → VOTING_FINISHED
-                                                                      ↓            ↓
-                                                                    TIE        COMPLETED
-                                                                      ↓ (extender +60s, misma ronda, votos se conservan)
-                                                                VOTING_ACTIVE
+Sugerencias (SUGGESTIONS):
+DRAFT → SUGGESTIONS_ACTIVE → SUGGESTIONS_FINISHED → COMPLETED
+COMPLETED → SUGGESTIONS_ACTIVE: nueva ronda.
+Votación (VOTING):
+DRAFT → VOTING_ACTIVE → VOTING_FINISHED → COMPLETED
+                                      ↓
+                                    TIE → VOTING_ACTIVE (extender +60s, misma ronda, votos se conservan)
+Al cerrar la votación, el empate en cabeza (votos > 0) pasa a TIE; el resto de
+resultados (ganador o "sin participación" si nadie votó) quedan en
+VOTING_FINISHED como vista previa hasta que el streamer confirma con
+"Finalizar evento" (→ COMPLETED).
+COMPLETED → VOTING_ACTIVE: nueva ronda repitiendo las mismas opciones (votos a cero).
 Sorteo (RAFFLE):
 DRAFT → REGISTRATION_OPEN → REGISTRATION_CLOSED → DRAWING → COMPLETED
                                                               ↑          ↓
                                                 (volver a sortear, excluyendo ganadores previos)
 COMPLETED → REGISTRATION_OPEN: nuevo sorteo (borra participantes, misma config).
-CANCELLED: desde DRAFT/REGISTRATION_*/SUGGESTIONS_*, automático si expira la fase
+CANCELLED: desde DRAFT/REGISTRATION_*/SUGGESTIONS_*/VOTING_ACTIVE, automático si expira la fase
 sin participación, y "Finalizar evento" desde COMPLETED.
 ```
 
@@ -96,27 +104,29 @@ Transiciones validadas en una tabla explícita `allowedTransitions`; cualquier t
 - **OAuth**: `/api/auth/twitch` → redirect a Twitch (scopes: `user:read:chat`) → callback intercambia code por tokens → upsert User+Channel → cookie JWT de sesión → redirect a `/dashboard`.
 - **EventSub**: al arrancar el servidor (y tras login/refresh), se abre conexión WebSocket a EventSub con el token del streamer y se suscribe a `channel.chat.message` (condition: `broadcaster_user_id` = `user_id` del streamer). Cada mensaje entrante se enruta al procesador de chat. Reconexión con backoff y resuscripción.
 - **Procesamiento de chat** (según corrección):
-  - Si fase = `SUGGESTIONS_ACTIVE` y el mensaje es texto válido (trim, 2–60 chars, no vacío): validar (usuario no sugirió, juego no vetado, no duplicado tras normalizar: lowercase + trim + colapsar espacios) → crear Suggestion → emitir por socket.
+  - Si fase = `SUGGESTIONS_ACTIVE` y el mensaje es texto válido (trim, 2–60 chars, no vacío): validar contra el catálogo IGDB (`src/lib/igdb/`, app access token con las mismas credenciales de la app de Twitch, límite 4 req/s con cola serializada y caché en memoria). Si IGDB encuentra el juego se guarda el título OFICIAL (canoniza typos; la similitud se mide contra título + nombres alternativos, umbral 0.6, y acepta palabras sueltas de franquicia); si no encuentra nada, rechazo silencioso; si IGDB falla (timeout/5xx), fail-open: se acepta el texto del usuario. Luego validar (usuario no sugirió, juego no vetado, no duplicado tras normalizar: lowercase + trim + colapsar espacios) → crear Suggestion → emitir por socket. Se desactiva con `IGDB_VALIDATION=off`.
   - Si fase = `VOTING_ACTIVE` y el mensaje es un entero dentro de `[1, n]` opciones: validar (usuario no votó) → resolver `position → VotingOption.id` → crear Vote → emitir ranking. Mensajes no numéricos o fuera de rango se ignoran silenciosamente.
   - En cualquier otra fase: ignorar.
-- **Temporizadores**: al iniciar cada fase se persiste `phaseEndsAt` y se programa un `setTimeout`; al expirar, el servidor aplica la transición (fin de sugerencias → `SUGGESTIONS_FINISHED` o `CANCELLED` si no hay sugerencias; fin de votación → cálculo de ranking → `COMPLETED` o `TIE`). Al arrancar el servidor se rehidratan timers desde `phaseEndsAt` de rondas activas. El frontend solo muestra el countdown calculado desde `phaseEndsAt`.
-- **Empate**: al finalizar votación, si los 2+ primeros tienen los mismos votos → estado `TIE`, sin ganador. Acción del dashboard "Añadir 1 minuto" → vuelve a `VOTING_ACTIVE` con nuevo `phaseEndsAt`, conservando votos y usuarios que ya votaron (siguen sin poder re-votar).
-- **Veto**: eliminar sugerencia desde dashboard → borra Suggestion + crea SuggestionBan (misma ronda). Si la votación ya empezó, no se puede eliminar (opción ya fijada como VotingOption).
+- **Temporizadores**: al iniciar cada fase se persiste `phaseEndsAt` y se programa un `setTimeout`; al expirar, el servidor aplica la transición (fin de sugerencias → `SUGGESTIONS_FINISHED` o `CANCELLED` si no hay sugerencias; fin de votación → `VOTING_FINISHED` —o `TIE` si hay empate con votos—, o `CANCELLED` si nadie votó). Al arrancar el servidor se rehidratan timers desde `phaseEndsAt` de rondas activas. El frontend solo muestra el countdown calculado desde `phaseEndsAt`.
+- **Empate**: al finalizar votación, si los 2+ primeros tienen los mismos votos (> 0) → estado `TIE`, sin ganador. Acción del dashboard "Añadir 1 minuto" → vuelve a `VOTING_ACTIVE` con nuevo `phaseEndsAt`, conservando votos y usuarios que ya votaron (siguen sin poder re-votar). Si nadie votó, no hay empate: `COMPLETED` sin ganador.
+- **Veto**: eliminar sugerencia desde dashboard → borra Suggestion + crea SuggestionBan (misma ronda). Solo posible durante la fase de sugerencias. Opera sobre el nombre normalizado canónico, así que vetar "Elden Ring" cubre todos sus typos.
 
 ## API (route handlers de Next)
 
 - `GET /api/auth/twitch`, `GET /api/auth/twitch/callback`, `POST /api/auth/logout`
 - `GET /api/me` — usuario/canal actual
-- `POST /api/events` — crear evento (duraciones con defaults: 60s sugerencias / 60s votación; `maxGames` opcional, default 10)
-- `PATCH /api/events/[id]` — editar duraciones y `maxGames` (solo en `DRAFT`)
+- `POST /api/events` — crear evento (duraciones con defaults: 60s sugerencias / 60s votación; `maxOptions` opcional, default 10; VOTING acepta `optionSource` y `options`)
+- `PATCH /api/events/[id]` — editar configuración del tipo (solo en `DRAFT`)
 - `GET /api/events/current` — evento activo del canal + ronda + sugerencias + votos
 - `POST /api/events/[id]/start-suggestions`
 - `POST /api/events/[id]/finish-suggestions` (también automático por timer)
-- `POST /api/events/[id]/start-voting` (crea VotingOptions con posiciones estables)
+- `POST /api/events/[id]/complete` (cierra el evento de sugerencias: SUGGESTIONS_FINISHED → COMPLETED)
+- `POST /api/events/[id]/start-voting` (crea VotingOptions con posiciones estables desde EventOption o desde el último evento de sugerencias completado)
 - `POST /api/events/[id]/finish-voting`
 - `POST /api/events/[id]/extend-voting` (desde `TIE`, +60s)
 - `POST /api/events/[id]/cancel`
-- `POST /api/events/[id]/new-round`
+- `POST /api/events/[id]/new-round` (nueva ronda de sugerencias)
+- `POST /api/events/[id]/new-voting-round` (nueva ronda de votación con las mismas opciones)
 - `POST /api/events/[id]/start-raffle` (abre la inscripción del sorteo)
 - `POST /api/events/[id]/finish-registration` (cierra la inscripción; también automático por timer)
 - `POST /api/events/[id]/draw` (elige ganador → animación de 5s → `COMPLETED`)

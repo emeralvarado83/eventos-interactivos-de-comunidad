@@ -22,6 +22,14 @@ export const config = {
   get sessionSecret(): string {
     return required("SESSION_SECRET");
   },
+  /**
+   * Validación de sugerencias contra el catálogo IGDB (activa por defecto).
+   * IGDB_VALIDATION=off la desactiva: útil si el canal sugiere juegos que no
+   * están en IGDB (itch.io, mods, fangames).
+   */
+  get igdbValidationEnabled(): boolean {
+    return process.env.IGDB_VALIDATION !== "off";
+  },
   get isProduction(): boolean {
     return process.env.NODE_ENV === "production";
   },

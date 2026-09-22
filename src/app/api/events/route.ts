@@ -1,7 +1,8 @@
 // POST /api/events — crea un evento (DRAFT + ronda 1) para el canal de la
-// sesión. Body JSON opcional: { suggestionDurationSec, votingDurationSec,
-// maxGames }. Duraciones: enteros entre 10 y 3600 (default 60/60).
-// maxGames: entero entre 1 y 50 (default 10).
+// sesión. Body JSON opcional según el tipo: SUGGESTIONS →
+// { suggestionDurationSec }; VOTING → { votingDurationSec, maxOptions,
+// optionSource, options? }; RAFFLE → { registrationDurationSec,
+// maxParticipants }. Duraciones: enteros entre 10 y 3600.
 
 import { NextRequest, NextResponse } from "next/server";
 import { BusinessError } from "@/lib/errors";

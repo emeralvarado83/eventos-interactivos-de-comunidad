@@ -22,10 +22,15 @@ export const EVENT_TYPE_META: Record<
     title: string;
   }
 > = {
-  GAME_SELECTION: {
-    label: "Sugerencias y votos",
+  SUGGESTIONS: {
+    label: "Sugerencias",
     startLabel: "Iniciar sugerencias",
-    title: "¿Qué jugamos hoy?",
+    title: "¿Qué sugiere el chat?",
+  },
+  VOTING: {
+    label: "Votación",
+    startLabel: "Iniciar votación",
+    title: "Votación",
   },
   RAFFLE: {
     label: "Sorteo",

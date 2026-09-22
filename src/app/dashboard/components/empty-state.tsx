@@ -15,8 +15,7 @@ export function EmptyState({ pending, onCreateEvent }: EmptyStateProps) {
           No hay ningún evento activo
         </h2>
         <p className="mt-2 text-sm text-zinc-400">
-          Crea un evento para que tu comunidad pueda sugerir y votar qué
-          jugar.
+          Crea un evento para interactuar con tu comunidad.
         </p>
       </div>
 

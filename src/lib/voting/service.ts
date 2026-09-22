@@ -22,18 +22,22 @@ export function computeRanking<T extends RankableOption>(options: T[]): T[] {
 
 export type VoteOutcome =
   | { type: "winner"; winner: RankableOption }
-  | { type: "tie"; tiedPositions: number[] };
+  | { type: "tie"; tiedPositions: number[] }
+  | { type: "none" };
 
 /**
- * Resultado de una votación cerrada: ganadora única o empate en cabeza
- * (2+ opciones con los mismos votos, incluido el empate a 0). Con una sola
- * opción siempre hay ganadora. Las posiciones empatadas van ordenadas asc.
+ * Resultado de una votación cerrada: ganadora única, empate en cabeza (2+
+ * opciones con los mismos votos > 0) o "none" si nadie votó (sin ganador ni
+ * empate: no hubo participación). Las posiciones empatadas van ordenadas asc.
  */
 export function resolveOutcome(options: RankableOption[]): VoteOutcome {
   if (options.length === 0) {
     throw new Error("resolveOutcome requiere al menos una opción");
   }
   const [leader] = computeRanking(options);
+  if (leader.votes === 0) {
+    return { type: "none" };
+  }
   const tied = options.filter((o) => o.votes === leader.votes);
   if (tied.length === 1) {
     return { type: "winner", winner: leader };
