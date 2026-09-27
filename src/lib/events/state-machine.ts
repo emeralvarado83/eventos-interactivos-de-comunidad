@@ -31,8 +31,10 @@ export const allowedTransitions: Readonly<
   ],
   CANCELLED: [],
   // Ciclo del sorteo: inscripción → cierre → selección → completado.
+  // REGISTRATION_CLOSED → COMPLETED finaliza sin sortear (p. ej. cuando
+  // nadie se inscribió y "Realizar sorteo" no está disponible).
   REGISTRATION_OPEN: ["REGISTRATION_CLOSED", "CANCELLED"],
-  REGISTRATION_CLOSED: ["DRAWING", "CANCELLED"],
+  REGISTRATION_CLOSED: ["DRAWING", "COMPLETED", "CANCELLED"],
   DRAWING: ["COMPLETED"],
 };
 

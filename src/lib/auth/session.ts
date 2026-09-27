@@ -15,6 +15,8 @@ export interface SessionPayload {
   twitchId: string;
   login: string;
   displayName: string;
+  /** Avatar de Twitch; null en sesiones creadas antes de guardarlo. */
+  avatarUrl: string | null;
 }
 
 function secretKey(): Uint8Array {
@@ -43,6 +45,7 @@ export async function verifySessionToken(
       twitchId: payload.twitchId as string,
       login: payload.login as string,
       displayName: payload.displayName as string,
+      avatarUrl: (payload.avatarUrl as string | null | undefined) ?? null,
     };
   } catch {
     return null;

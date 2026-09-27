@@ -79,6 +79,8 @@ export interface TwitchUser {
   id: string;
   login: string;
   displayName: string;
+  /** URL del avatar (profile_image_url de Helix). */
+  profileImageUrl: string;
 }
 
 /** Devuelve el perfil del propietario del access token (GET /helix/users sin parámetros). */
@@ -94,11 +96,21 @@ export async function fetchAuthenticatedUser(accessToken: string): Promise<Twitc
     throw new Error(`Error al consultar el usuario en Twitch (${res.status}): ${detail}`);
   }
   const data = (await res.json()) as {
-    data: Array<{ id: string; login: string; display_name: string }>;
+    data: Array<{
+      id: string;
+      login: string;
+      display_name: string;
+      profile_image_url: string;
+    }>;
   };
   const user = data.data[0];
   if (!user) {
     throw new Error("Twitch no devolvió ningún usuario para el token proporcionado");
   }
-  return { id: user.id, login: user.login, displayName: user.display_name };
+  return {
+    id: user.id,
+    login: user.login,
+    displayName: user.display_name,
+    profileImageUrl: user.profile_image_url,
+  };
 }

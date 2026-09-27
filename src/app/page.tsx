@@ -17,14 +17,19 @@ export default async function Home({
   const errorMessage = error ? ERROR_MESSAGES[error] : null;
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-zinc-950 px-6 font-sans text-zinc-100">
-      <main className="flex w-full max-w-xl flex-col items-center gap-8 text-center">
+    <div className="relative flex flex-1 flex-col items-center justify-center bg-zinc-950 px-6 font-sans text-zinc-100">
+      {/* Fondo: la imagen se sirve desde /public */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[url('/fondo-login.png')] bg-cover bg-center"
+      />
+      <main className="relative flex w-full max-w-xl flex-col items-center gap-8 text-center">
         <h1 className="text-4xl font-bold tracking-tight">
           Eventos interactivos para Twitch
         </h1>
         <p className="text-lg leading-8 text-zinc-400">
-          Crea eventos de sugerencias y votaciones para tu chat: tu audiencia
-          propone juegos y vota el ganador, con un overlay listo para OBS.
+          Crea eventos de sugerencias, votaciones, sorteos, encuestas y más.
+          ¡Tu chat decide!
         </p>
 
         {errorMessage && (

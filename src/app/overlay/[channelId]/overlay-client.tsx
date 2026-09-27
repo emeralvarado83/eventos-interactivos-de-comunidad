@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useChannelSocket } from "@/hooks/use-channel-socket";
 import { formatCountdown, useCountdown } from "@/hooks/use-countdown";
+import { useEventStartAlert } from "@/hooks/use-event-start-alert";
 import type {
   RaffleParticipantView,
   VotingOptionView,
@@ -307,6 +308,7 @@ export function OverlayClient({ channelId }: { channelId: string }) {
   }, []);
 
   const status = snapshot?.event?.status ?? null;
+  useEventStartAlert(status);
   const phaseEndsAt = snapshot?.round?.phaseEndsAt ?? null;
   const countdown = useCountdown(phaseEndsAt);
 

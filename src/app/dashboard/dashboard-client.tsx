@@ -8,7 +8,6 @@ import {
 import { useChannelSocket } from "@/hooks/use-channel-socket";
 import { formatCountdown, useCountdown } from "@/hooks/use-countdown";
 import { EVENT_TYPE_META } from "@/lib/branding";
-import { Sidebar } from "./components/sidebar";
 import { Topbar } from "./components/topbar";
 import { StatusPill } from "./components/status-pill";
 import { EmptyState } from "./components/empty-state";
@@ -38,12 +37,14 @@ interface DashboardClientProps {
   displayName: string;
   channelLogin: string;
   overlayUrl: string;
+  avatarUrl: string | null;
 }
 
 export function DashboardClient({
   channelId,
   displayName,
   overlayUrl,
+  avatarUrl,
 }: DashboardClientProps) {
   const { snapshot, connected, setSnapshot } = useChannelSocket({
     channelId,
@@ -141,13 +142,10 @@ export function DashboardClient({
       status === "COMPLETED");
 
   return (
-    <div className="flex min-h-full flex-1 bg-[#0a0614] font-sans text-zinc-100">
-      <Sidebar />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar
+    <div className="flex min-w-0 flex-1 flex-col">
+      <Topbar
           displayName={displayName}
-          connected={connected}
+          avatarUrl={avatarUrl}
           copied={copied}
           onCopyOverlayUrl={copyOverlayUrl}
         />
@@ -229,11 +227,10 @@ export function DashboardClient({
               }`}
             />
             {connected
-              ? "Sistema listo — La comunidad puede sugerir y votar en el chat."
+              ? "Sistema listo"
               : "Reconectando con el servidor en tiempo real…"}
           </p>
         </footer>
-      </div>
     </div>
   );
 }
@@ -334,8 +331,7 @@ function EventCard({
 
       {status === "SUGGESTIONS_FINISHED" && (
         <p className="mt-3 text-sm text-zinc-400">
-          Sugerencias cerradas. Puedes finalizar el evento e iniciar una nueva
-          ronda o cancelarlo.
+          Sugerencias cerradas. Puedes finalizar el evento.
         </p>
       )}
 
@@ -347,8 +343,7 @@ function EventCard({
 
       {status === "VOTING_FINISHED" && (
         <p className="mt-3 text-sm text-zinc-400">
-          Votación cerrada. Puedes finalizar el evento e iniciar una nueva
-          ronda o cancelarlo.
+          Votación cerrada. Puedes finalizar el evento.
         </p>
       )}
 
@@ -362,7 +357,8 @@ function EventCard({
       {status === "COMPLETED" &&
         event.type === "SUGGESTIONS" && (
           <p className="mt-3 text-sm text-zinc-400">
-            Evento finalizado. Puedes iniciar una nueva ronda de sugerencias.
+            Evento finalizado. Puedes iniciar una nueva ronda de sugerencias
+            o finalizar el evento.
           </p>
         )}
 
@@ -371,7 +367,7 @@ function EventCard({
         !snapshot.winner && (
           <p className="mt-3 text-sm text-zinc-400">
             La votación terminó sin participación. Puedes iniciar una nueva
-            ronda con las mismas opciones.
+            ronda con las mismas opciones o finalizar el evento.
           </p>
         )}
 
@@ -517,14 +513,16 @@ function EventCard({
             >
               {pending === "draw" ? "Sorteando…" : "Realizar sorteo"}
             </button>
-            <button
-              type="button"
-              disabled={pending !== null}
-              onClick={() => onAction("cancel", "cancel")}
-              className={DANGER_BTN}
-            >
-              Cancelar
-            </button>
+            {snapshot.raffleParticipants.length === 0 && (
+              <button
+                type="button"
+                disabled={pending !== null}
+                onClick={() => onAction("complete", "complete")}
+                className={PRIMARY_BTN}
+              >
+                {pending === "complete" ? "Finalizando…" : "Finalizar evento"}
+              </button>
+            )}
           </>
         )}
 
@@ -551,24 +549,14 @@ function EventCard({
         )}
 
         {status === "SUGGESTIONS_FINISHED" && (
-          <>
-            <button
-              type="button"
-              disabled={pending !== null}
-              onClick={() => onAction("complete", "complete")}
-              className={PRIMARY_BTN}
-            >
-              {pending === "complete" ? "Finalizando…" : "Finalizar evento"}
-            </button>
-            <button
-              type="button"
-              disabled={pending !== null}
-              onClick={() => onAction("cancel", "cancel")}
-              className={DANGER_BTN}
-            >
-              Cancelar
-            </button>
-          </>
+          <button
+            type="button"
+            disabled={pending !== null}
+            onClick={() => onAction("complete", "complete")}
+            className={PRIMARY_BTN}
+          >
+            {pending === "complete" ? "Finalizando…" : "Finalizar evento"}
+          </button>
         )}
 
         {status === "VOTING_ACTIVE" && (
@@ -594,24 +582,14 @@ function EventCard({
         )}
 
         {status === "VOTING_FINISHED" && (
-          <>
-            <button
-              type="button"
-              disabled={pending !== null}
-              onClick={() => onAction("complete", "complete")}
-              className={PRIMARY_BTN}
-            >
-              {pending === "complete" ? "Finalizando…" : "Finalizar evento"}
-            </button>
-            <button
-              type="button"
-              disabled={pending !== null}
-              onClick={() => onAction("cancel", "cancel")}
-              className={DANGER_BTN}
-            >
-              Cancelar
-            </button>
-          </>
+          <button
+            type="button"
+            disabled={pending !== null}
+            onClick={() => onAction("complete", "complete")}
+            className={PRIMARY_BTN}
+          >
+            {pending === "complete" ? "Finalizando…" : "Finalizar evento"}
+          </button>
         )}
 
         {status === "TIE" && (
@@ -626,44 +604,14 @@ function EventCard({
         )}
 
         {status === "COMPLETED" && event.type === "SUGGESTIONS" && (
-          <button
-            type="button"
-            disabled={pending !== null}
-            onClick={() => onAction("new-round", "new-round")}
-            className={PRIMARY_BTN}
-          >
-            {pending === "new-round" ? "Creando…" : "Nueva ronda"}
-          </button>
-        )}
-
-        {status === "COMPLETED" && event.type === "VOTING" && (
-          <button
-            type="button"
-            disabled={pending !== null}
-            onClick={() => onAction("new-voting-round", "new-voting-round")}
-            className={PRIMARY_BTN}
-          >
-            {pending === "new-voting-round" ? "Creando…" : "Nueva ronda"}
-          </button>
-        )}
-
-        {status === "COMPLETED" && event.type === "RAFFLE" && (
           <>
             <button
               type="button"
               disabled={pending !== null}
-              onClick={() => onAction("redraw", "redraw")}
-              className={SECONDARY_BTN}
-            >
-              {pending === "redraw" ? "Sorteando…" : "Volver a sortear"}
-            </button>
-            <button
-              type="button"
-              disabled={pending !== null}
-              onClick={() => onAction("new-raffle", "new-raffle")}
+              onClick={() => onAction("new-round", "new-round")}
               className={PRIMARY_BTN}
             >
-              {pending === "new-raffle" ? "Creando…" : "Nuevo sorteo"}
+              {pending === "new-round" ? "Creando…" : "Nueva ronda"}
             </button>
             <button
               type="button"
@@ -671,7 +619,49 @@ function EventCard({
               onClick={() => onAction("cancel", "cancel")}
               className={DANGER_BTN}
             >
-              Finalizar evento
+              Cancelar
+            </button>
+          </>
+        )}
+
+        {status === "COMPLETED" && event.type === "VOTING" && (
+          <>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("new-voting-round", "new-voting-round")}
+              className={PRIMARY_BTN}
+            >
+              {pending === "new-voting-round" ? "Creando…" : "Nueva ronda"}
+            </button>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("cancel", "cancel")}
+              className={DANGER_BTN}
+            >
+              Cancelar
+            </button>
+          </>
+        )}
+
+        {status === "COMPLETED" && event.type === "RAFFLE" && (
+          <>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("new-raffle", "new-raffle")}
+              className={PRIMARY_BTN}
+            >
+              {pending === "new-raffle" ? "Creando…" : "Nueva ronda"}
+            </button>
+            <button
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction("cancel", "cancel")}
+              className={DANGER_BTN}
+            >
+              Cancelar
             </button>
           </>
         )}

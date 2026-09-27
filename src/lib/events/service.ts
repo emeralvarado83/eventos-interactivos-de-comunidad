@@ -299,6 +299,54 @@ export async function getEventById(eventId: string) {
   return db.event.findUnique({ where: { id: eventId } });
 }
 
+/** Historial del canal: los 10 eventos más recientes, del más nuevo al más antiguo. */
+export async function getEventHistory(channelId: string) {
+  const events = await db.event.findMany({
+    where: { channelId },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+  return events.map((event) => ({
+    id: event.id,
+    type: event.type,
+    status: event.status,
+    createdAt: event.createdAt,
+    endedAt: event.endedAt,
+  }));
+}
+
+/**
+ * Último evento de sugerencias finalizado (COMPLETED) del canal, con las
+ * sugerencias de su última ronda en orden de llegada. Es la misma lista que
+ * se importa como opciones al iniciar un VOTING con origen FROM_SUGGESTIONS.
+ */
+export async function getLatestCompletedSuggestions(channelId: string) {
+  const event = await db.event.findFirst({
+    where: { channelId, type: "SUGGESTIONS", status: "COMPLETED" },
+    orderBy: { createdAt: "desc" },
+    include: {
+      rounds: {
+        orderBy: { number: "desc" },
+        take: 1,
+        include: { suggestions: { orderBy: { createdAt: "asc" } } },
+      },
+    },
+  });
+  if (!event) return null;
+  const round = event.rounds[0] ?? null;
+  return {
+    eventId: event.id,
+    createdAt: event.createdAt,
+    endedAt: event.endedAt,
+    roundNumber: round?.number ?? null,
+    suggestions: (round?.suggestions ?? []).map((s) => ({
+      id: s.id,
+      gameName: s.gameName,
+      twitchLogin: s.twitchLogin,
+    })),
+  };
+}
+
 /** Snapshot completo del evento actual del canal (último no cancelado). */
 export async function getCurrentSnapshot(
   channelId: string

@@ -22,6 +22,7 @@ export default async function DashboardPage() {
       displayName={session.displayName}
       channelLogin={session.login}
       overlayUrl={overlayUrl}
+      avatarUrl={session.avatarUrl}
     />
   );
 }

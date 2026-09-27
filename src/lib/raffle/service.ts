@@ -198,6 +198,33 @@ export async function finishRegistration(
 }
 
 /**
+ * REGISTRATION_CLOSED → COMPLETED: finaliza el evento sin realizar el
+ * sorteo (caso de uso: nadie se inscribió y "Realizar sorteo" está
+ * deshabilitado). No hay ganador; en COMPLETED se puede hacer un nuevo
+ * sorteo o cancelar, igual que en los demás tipos de evento.
+ */
+export async function completeRaffle(eventId: string): Promise<void> {
+  const { event, round } = await getRaffleEvent(eventId);
+  assertTransition(event.status, "COMPLETED");
+
+  clearPhaseTimer(event.id);
+  await db.$transaction([
+    db.event.update({
+      where: { id: event.id },
+      data: { status: "COMPLETED", endedAt: new Date() },
+    }),
+    db.round.update({
+      where: { id: round.id },
+      data: { phaseEndsAt: null },
+    }),
+  ]);
+  await publishEventState(event.channelId, {
+    event: SOCKET_EVENTS.COMPLETED,
+    payload: { channelId: event.channelId },
+  });
+}
+
+/**
  * Núcleo del sorteo: excluye al ganador anterior (si lo hay), elige un
  * ganador aleatorio entre los elegibles y entra en DRAWING con el timer de
  * la animación. Todo en una transacción: si no hay elegibles, nada cambia.

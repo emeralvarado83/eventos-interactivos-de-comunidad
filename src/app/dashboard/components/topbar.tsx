@@ -1,13 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import { CheckIcon, CopyIcon, LogoutIcon } from "./icons";
 
 interface TopbarProps {
   displayName: string;
-  connected: boolean;
+  /** URL del avatar de Twitch; null muestra iniciales. */
+  avatarUrl: string | null;
   copied: boolean;
   onCopyOverlayUrl: () => void;
 }
+
+// Intervalo de sondeo del estado real del directo.
+const LIVE_POLL_MS = 60_000;
 
 function initials(name: string): string {
   return name
@@ -17,25 +23,76 @@ function initials(name: string): string {
     .join("");
 }
 
+/** Estado real del directo en Twitch, consultado vía /api/twitch/live. */
+function useLiveStatus(): boolean | null {
+  const [live, setLive] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkLive() {
+      try {
+        const res = await fetch("/api/twitch/live");
+        if (!res.ok) return;
+        const data = (await res.json()) as { live?: unknown };
+        if (!cancelled && typeof data.live === "boolean") {
+          setLive(data.live);
+        }
+      } catch {
+        // Error de red: se reintenta en el siguiente sondeo.
+      }
+    }
+
+    void checkLive();
+    const timer = setInterval(checkLive, LIVE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  return live;
+}
+
 export function Topbar({
   displayName,
-  connected,
+  avatarUrl,
   copied,
   onCopyOverlayUrl,
 }: TopbarProps) {
+  const live = useLiveStatus();
+
   return (
     <header className="flex items-center justify-between gap-3 border-b border-violet-500/15 bg-[#0c0718]/60 px-6 py-3.5">
       <div className="flex items-center gap-2.5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-700 text-sm font-black text-white">
-          {initials(displayName)}
-        </span>
+        {avatarUrl ? (
+          <Image
+            src={avatarUrl}
+            alt={`Avatar de ${displayName}`}
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-full"
+          />
+        ) : (
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-700 text-sm font-black text-white">
+            {initials(displayName)}
+          </span>
+        )}
         <div className="leading-tight">
           <p className="text-sm font-bold text-white">{displayName}</p>
           <p className="flex items-center gap-1 text-[11px] font-medium text-violet-300/80">
-            {connected && (
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            {live !== null && (
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  live ? "bg-emerald-400" : "bg-zinc-500"
+                }`}
+              />
             )}
-            {connected ? "En vivo en Twitch" : "Sin conexión"}
+            {live === null
+              ? "Comprobando directo…"
+              : live
+                ? "En vivo en Twitch"
+                : "Fuera de línea"}
           </p>
         </div>
       </div>

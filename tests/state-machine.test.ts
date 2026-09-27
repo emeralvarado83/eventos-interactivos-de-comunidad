@@ -36,6 +36,7 @@ describe("máquina de estados", () => {
       ["REGISTRATION_OPEN", "REGISTRATION_CLOSED"],
       ["REGISTRATION_OPEN", "CANCELLED"],
       ["REGISTRATION_CLOSED", "DRAWING"],
+      ["REGISTRATION_CLOSED", "COMPLETED"],
       ["REGISTRATION_CLOSED", "CANCELLED"],
       ["DRAWING", "COMPLETED"],
     ];
@@ -56,8 +57,8 @@ describe("máquina de estados", () => {
         }
       }
     }
-    // 121 pares posibles (11 estados) - 24 válidas.
-    expect(rejected).toBe(97);
+    // 121 pares posibles (11 estados) - 25 válidas.
+    expect(rejected).toBe(96);
   });
 
   it("rechaza las transiciones del antiguo flujo combinado", () => {

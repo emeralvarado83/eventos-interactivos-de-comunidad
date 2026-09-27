@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
       update: {
         login: twitchUser.login,
         displayName: twitchUser.displayName,
+        avatarUrl: twitchUser.profileImageUrl,
         accessToken: encryptSecret(tokens.accessToken),
         refreshToken: encryptSecret(tokens.refreshToken),
         tokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
         twitchId: twitchUser.id,
         login: twitchUser.login,
         displayName: twitchUser.displayName,
+        avatarUrl: twitchUser.profileImageUrl,
         accessToken: encryptSecret(tokens.accessToken),
         refreshToken: encryptSecret(tokens.refreshToken),
         tokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),
@@ -66,6 +68,7 @@ export async function GET(request: NextRequest) {
       twitchId: user.twitchId,
       login: user.login,
       displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
     });
 
     // Abrir la conexión EventSub del streamer sin bloquear el redirect.

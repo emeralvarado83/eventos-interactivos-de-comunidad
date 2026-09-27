@@ -1,3 +1,7 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/branding";
 import {
   BoltIcon,
@@ -8,13 +12,15 @@ import {
 } from "./icons";
 
 const NAV_ITEMS = [
-  { label: "Inicio", icon: HomeIcon, active: true },
-  { label: "Lista de juegos", icon: ListIcon, active: false },
-  { label: "Configuración", icon: GearIcon, active: false },
-  { label: "Historial", icon: HistoryIcon, active: false },
+  { label: "Inicio", icon: HomeIcon, href: "/dashboard" },
+  { label: "Juegos sugeridos", icon: ListIcon, href: "/dashboard/juegos-sugeridos" },
+  { label: "Configuración", icon: GearIcon, href: null },
+  { label: "Historial", icon: HistoryIcon, href: "/dashboard/historial" },
 ] as const;
 
 export function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="flex w-70 shrink-0 flex-col border-r border-violet-500/15 bg-[#0c0718]">
       <div className="flex items-center gap-3 px-5 pt-6 pb-8">
@@ -30,29 +36,42 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1 px-3">
-        {NAV_ITEMS.map(({ label, icon: Icon, active }) =>
-          active ? (
-            <span
-              key={label}
-              className="flex items-center gap-3 rounded-xl bg-violet-500/15 px-3 py-2.5 text-sm font-bold text-violet-200"
-            >
-              <Icon className="h-4.5 w-4.5 text-violet-300" />
-              {label}
-            </span>
-          ) : (
-            <span
-              key={label}
-              title="Próximamente"
-              className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-500"
-            >
-              <Icon className="h-4.5 w-4.5" />
-              {label}
-              <span className="ml-auto rounded-full border border-zinc-700 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-zinc-500">
-                Próximamente
+        {NAV_ITEMS.map(({ label, icon: Icon, href }) => {
+          if (!href) {
+            return (
+              <span
+                key={label}
+                title="Próximamente"
+                className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-500"
+              >
+                <Icon className="h-4.5 w-4.5" />
+                {label}
+                <span className="ml-auto rounded-full border border-zinc-700 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-zinc-500">
+                  Próximamente
+                </span>
               </span>
-            </span>
-          )
-        )}
+            );
+          }
+
+          const active = pathname === href;
+          return (
+            <Link
+              key={label}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className={
+                active
+                  ? "flex items-center gap-3 rounded-xl bg-violet-500/15 px-3 py-2.5 text-sm font-bold text-violet-200"
+                  : "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-violet-500/10 hover:text-violet-200"
+              }
+            >
+              <Icon
+                className={`h-4.5 w-4.5 ${active ? "text-violet-300" : ""}`}
+              />
+              {label}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );

@@ -49,6 +49,8 @@ model User {
   twitchId       String    @unique
   login          String
   displayName    String
+  // URL del avatar de Twitch (profile_image_url), se actualiza en cada login.
+  avatarUrl      String?
   accessToken    String
   refreshToken   String
   tokenExpiresAt DateTime
