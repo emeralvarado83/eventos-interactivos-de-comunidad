@@ -310,7 +310,7 @@ function EventCard({
 
       {status === "REGISTRATION_CLOSED" && (
         <p className="mt-3 text-sm text-zinc-400">
-          Sorteo listo · {snapshot.raffleParticipants.length}{" "}
+          {snapshot.raffleParticipants.length}{" "}
           {snapshot.raffleParticipants.length === 1
             ? "participante"
             : "participantes"}

@@ -29,11 +29,71 @@ interface ConfigPanelProps {
 const INPUT_CLASS =
   "w-full rounded-lg border border-violet-500/25 bg-[#080512] px-3 py-2 text-sm font-semibold text-white outline-none transition-colors focus:border-violet-400/60 disabled:cursor-not-allowed disabled:opacity-50";
 
+// Las flechas nativas del input numérico no se pueden estilizar de forma
+// fiable entre navegadores, así que se ocultan y se usan botones propios.
+const DURATION_INPUT_CLASS = `${INPUT_CLASS} pr-24 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden`;
+
+/** Input de duración en minutos con botones de subir/bajar acordes al tema. */
+function DurationInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (minutes: number) => void;
+  disabled: boolean;
+}) {
+  function step(delta: number) {
+    onChange(Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, value + delta)));
+  }
+  const stepBtn =
+    "flex h-3.5 w-5 items-center justify-center text-[9px] leading-none text-zinc-500 transition-colors hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-40";
+  return (
+    <span className="relative">
+      <input
+        type="number"
+        min={MIN_MINUTES}
+        max={MAX_MINUTES}
+        disabled={disabled}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={DURATION_INPUT_CLASS}
+      />
+      <span className="absolute top-1/2 right-10 flex -translate-y-1/2 flex-col">
+        <button
+          type="button"
+          title="Subir"
+          disabled={disabled || value >= MAX_MINUTES}
+          onClick={() => step(1)}
+          className={stepBtn}
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          title="Bajar"
+          disabled={disabled || value <= MIN_MINUTES}
+          onClick={() => step(-1)}
+          className={stepBtn}
+        >
+          ▼
+        </button>
+      </span>
+      <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
+        minutos
+      </span>
+    </span>
+  );
+}
+
 /** Valor provisional del input de participantes cuando el límite está en "Sin límite". */
 const DEFAULT_MAX_PARTICIPANTS = 100;
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 50;
 const MAX_OPTION_LENGTH = 60;
+// Las duraciones se muestran en minutos; la API y la BD trabajan en segundos.
+const MIN_MINUTES = 1;
+const MAX_MINUTES = 60;
 
 const OPTION_SOURCE_META: Record<OptionSourceName, { label: string; hint: string }> = {
   MANUAL: {
@@ -83,14 +143,18 @@ function ConfigForm({
   onSave,
 }: ConfigPanelProps) {
   const [selectedType, setSelectedType] = useState(type);
-  const [suggestionSec, setSuggestionSec] = useState(suggestionDurationSec);
-  const [votingSec, setVotingSec] = useState(votingDurationSec);
+  const [suggestionMin, setSuggestionMin] = useState(
+    Math.round(suggestionDurationSec / 60)
+  );
+  const [votingMin, setVotingMin] = useState(
+    Math.round(votingDurationSec / 60)
+  );
   const [maxOpts, setMaxOpts] = useState(maxOptions);
   const [source, setSource] = useState<OptionSourceName>(optionSource);
   const [options, setOptions] = useState<string[]>(manualOptions);
   const [newOption, setNewOption] = useState("");
-  const [registrationSec, setRegistrationSec] = useState(
-    registrationDurationSec
+  const [registrationMin, setRegistrationMin] = useState(
+    Math.round(registrationDurationSec / 60)
   );
   const [unlimited, setUnlimited] = useState(maxParticipants === null);
   const [participants, setParticipants] = useState(
@@ -130,13 +194,13 @@ function ConfigForm({
       maxParticipants,
     });
     setSelectedType(type);
-    setSuggestionSec(suggestionDurationSec);
-    setVotingSec(votingDurationSec);
+    setSuggestionMin(Math.round(suggestionDurationSec / 60));
+    setVotingMin(Math.round(votingDurationSec / 60));
     setMaxOpts(maxOptions);
     setSource(optionSource);
     setOptions(manualOptions);
     setNewOption("");
-    setRegistrationSec(registrationDurationSec);
+    setRegistrationMin(Math.round(registrationDurationSec / 60));
     setUnlimited(maxParticipants === null);
     setParticipants(maxParticipants ?? DEFAULT_MAX_PARTICIPANTS);
   }
@@ -167,13 +231,13 @@ function ConfigForm({
     if (selectedType === "RAFFLE") {
       onSave({
         type: "RAFFLE",
-        registrationDurationSec: registrationSec,
+        registrationDurationSec: registrationMin * 60,
         maxParticipants: unlimited ? null : participants,
       });
     } else if (selectedType === "VOTING") {
       onSave({
         type: "VOTING",
-        votingDurationSec: votingSec,
+        votingDurationSec: votingMin * 60,
         maxOptions: maxOpts,
         optionSource: source,
         ...(source === "MANUAL" ? { options: cleanOptions } : {}),
@@ -181,7 +245,7 @@ function ConfigForm({
     } else {
       onSave({
         type: "SUGGESTIONS",
-        suggestionDurationSec: suggestionSec,
+        suggestionDurationSec: suggestionMin * 60,
       });
     }
   }
@@ -218,20 +282,11 @@ function ConfigForm({
       {selectedType === "SUGGESTIONS" && (
         <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
           Duración de sugerencias
-          <span className="relative">
-            <input
-              type="number"
-              min={10}
-              max={3600}
-              disabled={!editable}
-              value={suggestionSec}
-              onChange={(e) => setSuggestionSec(Number(e.target.value))}
-              className={INPUT_CLASS}
-            />
-            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
-              segundos
-            </span>
-          </span>
+          <DurationInput
+            value={suggestionMin}
+            onChange={setSuggestionMin}
+            disabled={!editable}
+          />
         </label>
       )}
 
@@ -239,20 +294,11 @@ function ConfigForm({
         <>
           <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
             Duración de votación
-            <span className="relative">
-              <input
-                type="number"
-                min={10}
-                max={3600}
-                disabled={!editable}
-                value={votingSec}
-                onChange={(e) => setVotingSec(Number(e.target.value))}
-                className={INPUT_CLASS}
-              />
-              <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
-                segundos
-              </span>
-            </span>
+            <DurationInput
+              value={votingMin}
+              onChange={setVotingMin}
+              disabled={!editable}
+            />
           </label>
 
           <div className="flex flex-col gap-1.5">
@@ -382,20 +428,11 @@ function ConfigForm({
         <>
           <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
             Duración de inscripción
-            <span className="relative">
-              <input
-                type="number"
-                min={10}
-                max={3600}
-                disabled={!editable}
-                value={registrationSec}
-                onChange={(e) => setRegistrationSec(Number(e.target.value))}
-                className={INPUT_CLASS}
-              />
-              <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-zinc-600">
-                segundos
-              </span>
-            </span>
+            <DurationInput
+              value={registrationMin}
+              onChange={setRegistrationMin}
+              disabled={!editable}
+            />
           </label>
           <div className="flex flex-col gap-1.5">
             <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">

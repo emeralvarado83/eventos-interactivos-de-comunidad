@@ -1,5 +1,5 @@
 // Servicio del sorteo (Event.type = RAFFLE): inscripción de participantes
-// desde el chat (!participo, silencioso como las sugerencias), ciclo de vida
+// desde el chat (participo, silencioso como las sugerencias), ciclo de vida
 // DRAFT → REGISTRATION_OPEN → REGISTRATION_CLOSED → DRAWING → COMPLETED,
 // re-sorteo con exclusión de ganadores previos y nuevo sorteo.
 //
@@ -24,7 +24,7 @@ import { clearPhaseTimer, schedulePhaseTimer } from "@/lib/timers";
 /** Duración de la animación "Seleccionando ganador…" antes de revelar. */
 export const DRAWING_DURATION_SEC = 5;
 
-const PARTICIPANT_COMMAND = "!participo";
+const PARTICIPANT_COMMAND = "participo";
 
 /** ¿El mensaje es exactamente el comando de participación? */
 export function isParticipationCommand(text: string): boolean {
@@ -105,7 +105,7 @@ export async function addParticipant(
       data: { eventId: event.id, twitchUserId, twitchLogin },
     });
   } catch (err) {
-    // !participo repetido: ya estaba inscrito, no se duplica.
+    // participo repetido: ya estaba inscrito, no se duplica.
     if (isUniqueViolation(err)) return "ignored";
     throw err;
   }

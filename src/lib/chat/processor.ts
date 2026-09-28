@@ -1,7 +1,7 @@
 // Procesador de mensajes de chat (Fase 7, corrección del documento 2):
 // NO hay comandos. En SUGGESTIONS_ACTIVE cualquier texto válido es una
 // sugerencia; en VOTING_ACTIVE solo un entero dentro de [1, n] es un voto.
-// Excepción del sorteo: en REGISTRATION_OPEN solo "!participo" inscribe.
+// Excepción del sorteo: en REGISTRATION_OPEN solo "participo" inscribe.
 // Todo lo demás se ignora silenciosamente: nunca se responde al chat.
 
 import { db } from "@/lib/db";

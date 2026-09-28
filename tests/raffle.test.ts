@@ -9,17 +9,17 @@ import { BusinessError } from "@/lib/errors";
 
 describe("isParticipationCommand", () => {
   it("acepta el comando exacto, con espacios o mayúsculas", () => {
-    expect(isParticipationCommand("!participo")).toBe(true);
-    expect(isParticipationCommand("  !participo  ")).toBe(true);
-    expect(isParticipationCommand("!PARTICIPO")).toBe(true);
-    expect(isParticipationCommand("!Participo")).toBe(true);
+    expect(isParticipationCommand("participo")).toBe(true);
+    expect(isParticipationCommand("  participo  ")).toBe(true);
+    expect(isParticipationCommand("PARTICIPO")).toBe(true);
+    expect(isParticipationCommand("Participo")).toBe(true);
   });
 
   it("rechaza cualquier otro mensaje", () => {
-    expect(isParticipationCommand("participo")).toBe(false);
-    expect(isParticipationCommand("!participo por favor")).toBe(false);
-    expect(isParticipationCommand("!participo!")).toBe(false);
-    expect(isParticipationCommand("!yo participo")).toBe(false);
+    expect(isParticipationCommand("!participo")).toBe(false);
+    expect(isParticipationCommand("participo por favor")).toBe(false);
+    expect(isParticipationCommand("participo!")).toBe(false);
+    expect(isParticipationCommand("yo participo")).toBe(false);
     expect(isParticipationCommand("hola")).toBe(false);
     expect(isParticipationCommand("")).toBe(false);
   });

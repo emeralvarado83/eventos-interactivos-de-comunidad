@@ -25,7 +25,7 @@ export const EVENT_TYPE_META: Record<
   SUGGESTIONS: {
     label: "Sugerencias",
     startLabel: "Iniciar sugerencias",
-    title: "¿Qué sugiere el chat?",
+    title: "¿Qué jugamos?",
   },
   VOTING: {
     label: "Votación",

@@ -231,7 +231,7 @@ function InstructionsFooter({
         <FooterItem
           icon={<ChatIcon className="h-5 w-5" />}
           title="Para participar"
-          description="Escribe !participo en el chat"
+          description="Escribe participo en el chat"
         />
       ) : (
         <FooterItem
@@ -247,8 +247,8 @@ function InstructionsFooter({
 const SUGGESTIONS_TITLE = (
   <>
     <span className="text-white">¿QUÉ </span>
-    <span className="text-violet-400">SUGIERE</span>
-    <span className="text-white"> EL CHAT?</span>
+    <span className="text-violet-400">JUGAMOS</span>
+    <span className="text-white">?</span>
   </>
 );
 const SUGGESTIONS_SUBTITLE = "Escribe tu sugerencia en el chat";
@@ -408,6 +408,12 @@ export function OverlayClient({ channelId }: { channelId: string }) {
                 ? "Sugerencias cerradas"
                 : "Votación cerrada"
             }
+            count={
+              status === "SUGGESTIONS_FINISHED"
+                ? snapshot.suggestions.length
+                : undefined
+            }
+            countNoun={["juego", "juegos"]}
           >
             <p className="px-1 py-2 text-lg font-extrabold text-white">
               {status === "SUGGESTIONS_FINISHED"
@@ -484,54 +490,6 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         </>
       )}
 
-      {status === "COMPLETED" &&
-        snapshot?.event?.type === "VOTING" &&
-        !snapshot.winner && (
-          <>
-            <HeaderBanner
-              countdown={null}
-              title={VOTING_TITLE}
-              subtitle={VOTING_SUBTITLE}
-            />
-            <Panel title="Votación cerrada">
-              <p className="px-1 py-2 text-lg font-extrabold text-white">
-                La votación terminó sin participación
-              </p>
-            </Panel>
-          </>
-        )}
-
-      {status === "COMPLETED" &&
-        snapshot?.event?.type === "SUGGESTIONS" && (
-          <>
-            <HeaderBanner
-              countdown={null}
-              title={SUGGESTIONS_TITLE}
-              subtitle={SUGGESTIONS_SUBTITLE}
-            />
-            <Panel
-              title="Sugerencias cerradas"
-              count={snapshot.suggestions.length}
-              countNoun={["sugerencia", "sugerencias"]}
-            >
-              {snapshot.suggestions.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-[#120c22] to-[#0d0819] px-3 py-2"
-                >
-                  <ChatIcon className="h-4 w-4 shrink-0 text-violet-300" />
-                  <p className="min-w-0 flex-1 truncate text-base font-bold text-white">
-                    {s.gameName}
-                    <span className="ml-2 text-sm font-semibold text-violet-300/70">
-                      @{s.twitchLogin}
-                    </span>
-                  </p>
-                </div>
-              ))}
-            </Panel>
-          </>
-        )}
-
       {status === "REGISTRATION_OPEN" && snapshot && (
         <>
           <HeaderBanner
@@ -578,7 +536,7 @@ export function OverlayClient({ channelId }: { channelId: string }) {
           />
           <Panel title="Inscripciones cerradas">
             <p className="px-1 py-2 text-lg font-extrabold text-white">
-              ¡Sorteo listo! {snapshot.raffleParticipants.length}{" "}
+              {snapshot.raffleParticipants.length}{" "}
               {snapshot.raffleParticipants.length === 1
                 ? "participante"
                 : "participantes"}

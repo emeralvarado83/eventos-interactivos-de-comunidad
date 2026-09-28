@@ -15,7 +15,7 @@ const STATUS_STYLES: Record<EventStatusName, { label: string; classes: string }>
   },
   VOTING_ACTIVE: {
     label: "Votación abierta",
-    classes: "border-violet-400/60 bg-violet-500/15 text-violet-300",
+    classes: "border-emerald-500/50 bg-emerald-500/15 text-emerald-300",
   },
   VOTING_FINISHED: {
     label: "Votación cerrada",
