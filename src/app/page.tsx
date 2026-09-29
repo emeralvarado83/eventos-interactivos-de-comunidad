@@ -25,7 +25,7 @@ export default async function Home({
       />
       <main className="relative flex w-full max-w-xl flex-col items-center gap-8 text-center">
         <h1 className="text-4xl font-bold tracking-tight">
-          Eventos interactivos para Twitch
+          Eventos Interactivos de Comunidad
         </h1>
         <p className="text-lg leading-8 text-zinc-400">
           Crea eventos de sugerencias, votaciones, sorteos, encuestas y más.
