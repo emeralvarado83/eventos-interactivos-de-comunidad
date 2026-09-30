@@ -9,19 +9,25 @@ import { BusinessError } from "@/lib/errors";
 
 describe("isParticipationCommand", () => {
   it("acepta el comando exacto, con espacios o mayúsculas", () => {
-    expect(isParticipationCommand("participo")).toBe(true);
-    expect(isParticipationCommand("  participo  ")).toBe(true);
-    expect(isParticipationCommand("PARTICIPO")).toBe(true);
-    expect(isParticipationCommand("Participo")).toBe(true);
+    expect(isParticipationCommand("participo", "participo")).toBe(true);
+    expect(isParticipationCommand("  participo  ", "participo")).toBe(true);
+    expect(isParticipationCommand("PARTICIPO", "participo")).toBe(true);
+    expect(isParticipationCommand("Participo", "participo")).toBe(true);
+  });
+
+  it("acepta un comando personalizado del evento (case-insensitive)", () => {
+    expect(isParticipationCommand("sorteo", "sorteo")).toBe(true);
+    expect(isParticipationCommand("  SORTEO ", "sorteo")).toBe(true);
+    expect(isParticipationCommand("participo", "sorteo")).toBe(false);
   });
 
   it("rechaza cualquier otro mensaje", () => {
-    expect(isParticipationCommand("!participo")).toBe(false);
-    expect(isParticipationCommand("participo por favor")).toBe(false);
-    expect(isParticipationCommand("participo!")).toBe(false);
-    expect(isParticipationCommand("yo participo")).toBe(false);
-    expect(isParticipationCommand("hola")).toBe(false);
-    expect(isParticipationCommand("")).toBe(false);
+    expect(isParticipationCommand("!participo", "participo")).toBe(false);
+    expect(isParticipationCommand("participo por favor", "participo")).toBe(false);
+    expect(isParticipationCommand("participo!", "participo")).toBe(false);
+    expect(isParticipationCommand("yo participo", "participo")).toBe(false);
+    expect(isParticipationCommand("hola", "participo")).toBe(false);
+    expect(isParticipationCommand("", "participo")).toBe(false);
   });
 });
 

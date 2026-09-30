@@ -174,6 +174,78 @@ describe("parseEventConfig", () => {
       /maxParticipants/
     );
   });
+
+  it("acepta la config completa de sugerencias y recorta el título", () => {
+    expect(
+      parseEventConfig({
+        type: "SUGGESTIONS",
+        suggestionDurationSec: 120,
+        suggestionTitle: "  ¿Qué serie vemos?  ",
+        igdbValidation: false,
+        suggestionMaxLength: 100,
+      })
+    ).toEqual({
+      type: "SUGGESTIONS",
+      suggestionDurationSec: 120,
+      suggestionTitle: "¿Qué serie vemos?",
+      igdbValidation: false,
+      suggestionMaxLength: 100,
+    });
+  });
+
+  it("rechaza un suggestionTitle inválido", () => {
+    expect(() => parseEventConfig({ suggestionTitle: "a" })).toThrow(
+      /suggestionTitle/
+    );
+    expect(() =>
+      parseEventConfig({ suggestionTitle: "x".repeat(41) })
+    ).toThrow(/suggestionTitle/);
+    expect(() => parseEventConfig({ suggestionTitle: 42 })).toThrow(
+      /suggestionTitle/
+    );
+  });
+
+  it("rechaza un suggestionMaxLength fuera de rango", () => {
+    expect(() => parseEventConfig({ suggestionMaxLength: 9 })).toThrow(
+      /suggestionMaxLength/
+    );
+    expect(() => parseEventConfig({ suggestionMaxLength: 141 })).toThrow(
+      /suggestionMaxLength/
+    );
+    expect(() => parseEventConfig({ suggestionMaxLength: "60" })).toThrow(
+      /suggestionMaxLength/
+    );
+  });
+
+  it("rechaza un igdbValidation que no es booleano", () => {
+    expect(() => parseEventConfig({ igdbValidation: "si" })).toThrow(
+      /igdbValidation/
+    );
+    expect(parseEventConfig({ igdbValidation: true })).toEqual({
+      igdbValidation: true,
+    });
+  });
+
+  it("acepta un raffleCommand válido y lo normaliza a minúsculas", () => {
+    expect(parseEventConfig({ raffleCommand: "  SORTEO " })).toEqual({
+      raffleCommand: "sorteo",
+    });
+  });
+
+  it("rechaza un raffleCommand inválido", () => {
+    expect(() => parseEventConfig({ raffleCommand: "a" })).toThrow(
+      /raffleCommand/
+    );
+    expect(() => parseEventConfig({ raffleCommand: "x".repeat(21) })).toThrow(
+      /raffleCommand/
+    );
+    expect(() => parseEventConfig({ raffleCommand: "dos palabras" })).toThrow(
+      /raffleCommand/
+    );
+    expect(() => parseEventConfig({ raffleCommand: 42 })).toThrow(
+      /raffleCommand/
+    );
+  });
 });
 
 describe("EVENT_TYPE_META", () => {

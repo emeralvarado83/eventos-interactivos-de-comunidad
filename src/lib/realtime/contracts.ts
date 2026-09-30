@@ -43,6 +43,17 @@ export const OPTION_SOURCES: readonly OptionSourceName[] = [
   "FROM_SUGGESTIONS",
 ];
 
+/** Colores de tema seleccionables (página Configuración del canal). */
+export type ThemeColorName = "violet" | "cyan" | "pink" | "red" | "green";
+
+export const THEME_COLORS: readonly ThemeColorName[] = [
+  "violet",
+  "cyan",
+  "pink",
+  "red",
+  "green",
+];
+
 /**
  * Payload de guardado de configuración (PATCH /api/events/[id]): unión
  * discriminada por tipo. Cada variante lleva solo los campos de su tipo.
@@ -51,6 +62,11 @@ export type EventConfigPayload =
   | {
       type: "SUGGESTIONS";
       suggestionDurationSec: number;
+      /** Título visible del evento (dashboard y overlay). */
+      suggestionTitle: string;
+      /** false = texto libre, sin validar contra IGDB. */
+      igdbValidation: boolean;
+      suggestionMaxLength: number;
     }
   | {
       type: "VOTING";
@@ -66,6 +82,8 @@ export type EventConfigPayload =
       registrationDurationSec: number;
       /** null = sin límite de participantes. */
       maxParticipants: number | null;
+      /** Palabra exacta que inscribe desde el chat (case-insensitive). */
+      raffleCommand: string;
     };
 
 export interface SuggestionView {
@@ -92,6 +110,12 @@ export interface RaffleParticipantView {
 /** Snapshot completo del estado del evento activo de un canal. */
 export interface EventStateSnapshot {
   channelId: string;
+  /** Ajustes del canal (página Configuración): tema, sonido y restricciones. */
+  channel: {
+    themeColor: ThemeColorName;
+    alertSoundEnabled: boolean;
+    subsOnly: boolean;
+  };
   event: {
     id: string;
     type: EventTypeName;
@@ -107,6 +131,13 @@ export interface EventStateSnapshot {
     registrationDurationSec: number;
     /** Config del sorteo (type = RAFFLE). null = sin límite. */
     maxParticipants: number | null;
+    /** Palabra que inscribe al sorteo desde el chat (type = RAFFLE). */
+    raffleCommand: string;
+    /** Config de sugerencias (type = SUGGESTIONS). */
+    igdbValidation: boolean;
+    suggestionMaxLength: number;
+    /** Título visible del evento de sugerencias (dashboard y overlay). */
+    suggestionTitle: string;
     /** ISO 8601; null mientras el evento no ha terminado. */
     endedAt: string | null;
   } | null;

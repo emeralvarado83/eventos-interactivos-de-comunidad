@@ -228,8 +228,14 @@ function FooterItem({
 
 function InstructionsFooter({
   phase,
+  suggestDescription = "Escribe el nombre del juego en el chat",
+  participateDescription = "Escribe participo en el chat",
 }: {
   phase: "suggest" | "vote" | "participate";
+  /** Texto de la instrucción de sugerir (depende de la validación IGDB). */
+  suggestDescription?: string;
+  /** Texto de la instrucción de participar (lleva la palabra del sorteo). */
+  participateDescription?: string;
 }) {
   return (
     <footer className="overlay-rise flex divide-x divide-violet-500/25 rounded-2xl border border-violet-500/40 bg-[#0c0718]/92 shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
@@ -237,13 +243,13 @@ function InstructionsFooter({
         <FooterItem
           icon={<ChatIcon className="h-5 w-5" />}
           title="Para sugerir"
-          description="Escribe el nombre del juego en el chat"
+          description={suggestDescription}
         />
       ) : phase === "participate" ? (
         <FooterItem
           icon={<ChatIcon className="h-5 w-5" />}
           title="Para participar"
-          description="Escribe participo en el chat"
+          description={participateDescription}
         />
       ) : (
         <FooterItem
@@ -256,18 +262,36 @@ function InstructionsFooter({
   );
 }
 
-const SUGGESTIONS_TITLE = (
-  <>
-    <span className="text-white">¿QUÉ </span>
-    <span className="text-violet-400">JUGAMOS</span>
-    <span className="text-white">?</span>
-  </>
-);
-const SUGGESTIONS_SUBTITLE = "Escribe el nombre del juego en el chat";
 const VOTING_TITLE = <span className="text-violet-400">VOTACIÓN</span>;
 const VOTING_SUBTITLE = "Vota por tu opción favorita";
 const RAFFLE_TITLE = <span className="text-violet-400">SORTEO</span>;
 const RAFFLE_SUBTITLE = "Participa y gana";
+
+const SUGGEST_SUBTITLE_IGDB = "Escribe el nombre del juego en el chat";
+const SUGGEST_SUBTITLE_FREE = "Escribe tu sugerencia en el chat";
+
+/** ¿Subtítulo/instrucción del evento según la validación IGDB del evento? */
+function suggestInstruction(igdbValidation: boolean): string {
+  return igdbValidation ? SUGGEST_SUBTITLE_IGDB : SUGGEST_SUBTITLE_FREE;
+}
+
+/**
+ * Título del evento de sugerencias (editable en la config): se muestra en
+ * mayúsculas con la última palabra en el color del tema, como el "¿QUÉ
+ * JUGAMOS?" original.
+ */
+function suggestionsTitleNode(title: string): ReactNode {
+  const words = title.trim().toUpperCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return <span className="text-white">?</span>;
+  const last = words[words.length - 1];
+  const rest = words.slice(0, -1).join(" ");
+  return (
+    <>
+      {rest && <span className="text-white">{rest} </span>}
+      <span className="text-violet-400">{last}</span>
+    </>
+  );
+}
 
 /** Animación "🎰 Seleccionando ganador…": cicla nombres hasta que llega COMPLETED. */
 function RaffleDrawingAnimation({
@@ -320,7 +344,7 @@ export function OverlayClient({ channelId }: { channelId: string }) {
   }, []);
 
   const liveStatus = snapshot?.event?.status ?? null;
-  useEventStartAlert(liveStatus);
+  useEventStartAlert(liveStatus, snapshot?.channel.alertSoundEnabled ?? true);
 
   // Transición "evento detectado": cuando el estado pasa de idle (sin
   // evento, DRAFT o CANCELLED) a una fase activa, el Event Core ejecuta
@@ -356,15 +380,16 @@ export function OverlayClient({ channelId }: { channelId: string }) {
 
   return (
     <div
+      data-theme={snapshot?.channel.themeColor ?? "violet"}
       className="flex w-[460px] flex-col gap-3 p-4 font-sans"
       style={{ background: "transparent" }}
     >
-      {status === "SUGGESTIONS_ACTIVE" && snapshot && (
+      {status === "SUGGESTIONS_ACTIVE" && snapshot && snapshot.event && (
         <>
           <HeaderBanner
             countdown={countdown}
-            title={SUGGESTIONS_TITLE}
-            subtitle={SUGGESTIONS_SUBTITLE}
+            title={suggestionsTitleNode(snapshot.event.suggestionTitle)}
+            subtitle={suggestInstruction(snapshot.event.igdbValidation)}
           />
           <Panel
             title="Sugerencias recientes"
@@ -397,7 +422,12 @@ export function OverlayClient({ channelId }: { channelId: string }) {
                 ))
             )}
           </Panel>
-          <InstructionsFooter phase="suggest" />
+          <InstructionsFooter
+            phase="suggest"
+            suggestDescription={suggestInstruction(
+              snapshot.event.igdbValidation
+            )}
+          />
         </>
       )}
 
@@ -426,18 +456,18 @@ export function OverlayClient({ channelId }: { channelId: string }) {
       )}
 
       {(status === "SUGGESTIONS_FINISHED" || status === "VOTING_FINISHED") &&
-        snapshot && (
+        snapshot && snapshot.event && (
         <>
           <HeaderBanner
             countdown={null}
             title={
               status === "SUGGESTIONS_FINISHED"
-                ? SUGGESTIONS_TITLE
+                ? suggestionsTitleNode(snapshot.event.suggestionTitle)
                 : VOTING_TITLE
             }
             subtitle={
               status === "SUGGESTIONS_FINISHED"
-                ? SUGGESTIONS_SUBTITLE
+                ? suggestInstruction(snapshot.event.igdbValidation)
                 : VOTING_SUBTITLE
             }
           />
@@ -563,7 +593,14 @@ export function OverlayClient({ channelId }: { channelId: string }) {
                 ))
             )}
           </Panel>
-          <InstructionsFooter phase="participate" />
+          <InstructionsFooter
+            phase="participate"
+            participateDescription={
+              snapshot.event
+                ? `Escribe ${snapshot.event.raffleCommand} en el chat`
+                : undefined
+            }
+          />
         </>
       )}
 

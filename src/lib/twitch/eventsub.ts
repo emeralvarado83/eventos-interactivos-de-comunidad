@@ -42,6 +42,7 @@ interface EventSubChatMessage {
       chatter_user_id?: string;
       chatter_user_login?: string;
       message?: { text?: string };
+      badges?: { set_id?: string }[];
     };
   };
 }
@@ -119,6 +120,9 @@ async function handleNotification(message: EventSubChatMessage, state: Connectio
     twitchUserId: event.chatter_user_id,
     twitchLogin: event.chatter_user_login ?? event.chatter_user_id,
     text,
+    badges: (event.badges ?? [])
+      .map((b) => b.set_id)
+      .filter((id): id is string => Boolean(id)),
   });
 }
 

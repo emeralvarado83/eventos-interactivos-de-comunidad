@@ -14,7 +14,10 @@ const ACTIVE_STATUSES: readonly EventStatusName[] = [
 
 const ALERT_URL = "/alerta-evento.mp3";
 
-export function useEventStartAlert(status: EventStatusName | null): void {
+export function useEventStartAlert(
+  status: EventStatusName | null,
+  enabled: boolean = true
+): void {
   const prevStatus = useRef<EventStatusName | null>(null);
 
   useEffect(() => {
@@ -22,6 +25,7 @@ export function useEventStartAlert(status: EventStatusName | null): void {
     prevStatus.current = status;
 
     if (
+      enabled &&
       status !== null &&
       status !== prev &&
       ACTIVE_STATUSES.includes(status)
@@ -32,5 +36,5 @@ export function useEventStartAlert(status: EventStatusName | null): void {
         // OBS normalmente está permitido.
       });
     }
-  }, [status]);
+  }, [status, enabled]);
 }

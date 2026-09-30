@@ -212,6 +212,14 @@ export function DashboardClient({
                 snapshot?.event?.registrationDurationSec ?? 300
               }
               maxParticipants={snapshot?.event?.maxParticipants ?? null}
+              suggestionTitle={
+                snapshot?.event?.suggestionTitle ?? "¿Qué jugamos?"
+              }
+              igdbValidation={snapshot?.event?.igdbValidation ?? true}
+              suggestionMaxLength={
+                snapshot?.event?.suggestionMaxLength ?? 60
+              }
+              raffleCommand={snapshot?.event?.raffleCommand ?? "participo"}
               editable={status === "DRAFT"}
               pending={pending === "config"}
               onSave={saveConfig}
@@ -275,7 +283,9 @@ function EventCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
         <h2 className="font-display text-3xl text-white">
-          {EVENT_TYPE_META[event.type].title}
+          {event.type === "SUGGESTIONS"
+            ? event.suggestionTitle
+            : EVENT_TYPE_META[event.type].title}
         </h2>
         <StatusPill status={status} />
         {showCountdown && (

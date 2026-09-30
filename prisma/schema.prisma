@@ -66,8 +66,14 @@ model Channel {
   twitchId  String   @unique
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  events    Event[]
+  // Ajustes del canal (página Configuración del dashboard).
+  // themeColor: violet | cyan | pink | red | green.
+  themeColor        String  @default("violet")
+  alertSoundEnabled Boolean @default(true)
+  // Si está activo, solo suscriptores (y mods/broadcaster) participan.
+  subsOnly   Boolean @default(false)
+  createdAt  DateTime @default(now())
+  events     Event[]
 
   @@map("channels")
 }
@@ -87,6 +93,14 @@ model Event {
   // Configuración del sorteo (type = RAFFLE). maxParticipants null = sin límite.
   registrationDurationSec Int         @default(300)
   maxParticipants         Int?
+  // Palabra exacta que inscribe al sorteo desde el chat (case-insensitive).
+  raffleCommand           String      @default("participo")
+  // Config de sugerencias (type = SUGGESTIONS). igdbValidation = false acepta
+  // texto libre (eventos que no son de videojuegos).
+  igdbValidation       Boolean @default(true)
+  suggestionMaxLength  Int     @default(60)
+  // Título visible del evento (dashboard y overlay).
+  suggestionTitle      String  @default("¿Qué jugamos?")
   createdAt             DateTime    @default(now())
   startedAt             DateTime?
   endedAt               DateTime?

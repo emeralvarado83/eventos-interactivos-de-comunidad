@@ -14,17 +14,20 @@ import { SOCKET_EVENTS, type SuggestionView } from "@/lib/realtime/contracts";
 import { publishEventState } from "@/lib/events/service";
 
 const MIN_LENGTH = 2;
-const MAX_LENGTH = 60;
+const DEFAULT_MAX_LENGTH = 60;
 
 /** Normalización para deduplicar: lowercase + trim + colapsar espacios. */
 export function normalizeGameName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-/** Texto válido como sugerencia: tras trim, entre 2 y 60 caracteres. */
-export function isValidSuggestionText(text: string): boolean {
+/** Texto válido como sugerencia: tras trim, entre 2 y maxLength caracteres. */
+export function isValidSuggestionText(
+  text: string,
+  maxLength: number = DEFAULT_MAX_LENGTH
+): boolean {
   const trimmed = text.trim();
-  return trimmed.length >= MIN_LENGTH && trimmed.length <= MAX_LENGTH;
+  return trimmed.length >= MIN_LENGTH && trimmed.length <= maxLength;
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -54,8 +57,6 @@ export async function addSuggestion(
   twitchLogin: string,
   gameName: string
 ): Promise<AddSuggestionResult> {
-  if (!isValidSuggestionText(gameName)) return "ignored";
-
   const round = await db.round.findUnique({
     where: { id: roundId },
     include: { event: true },
@@ -67,10 +68,15 @@ export async function addSuggestion(
   ) {
     return "ignored";
   }
+  if (!isValidSuggestionText(gameName, round.event.suggestionMaxLength)) {
+    return "ignored";
+  }
 
   let finalGameName = gameName.trim();
   let igdbGameId: number | null = null;
-  if (config.igdbValidationEnabled) {
+  // La validación por evento se combina con el flag global (env): ambos deben
+  // estar activos para consultar el catálogo IGDB.
+  if (round.event.igdbValidation && config.igdbValidationEnabled) {
     try {
       const match = await resolveGameName(gameName);
       if (!match) return "ignored";

@@ -7,6 +7,14 @@ import { BusinessError } from "@/lib/errors";
 import { assertTransition } from "@/lib/events/state-machine";
 import type { EventConfigInput } from "@/lib/events/config";
 import {
+  MAX_COMMAND_LENGTH,
+  MAX_SUGGESTION_MAX_LENGTH,
+  MAX_SUGGESTION_TITLE_LENGTH,
+  MIN_COMMAND_LENGTH,
+  MIN_SUGGESTION_MAX_LENGTH,
+  MIN_SUGGESTION_TITLE_LENGTH,
+} from "@/lib/events/config";
+import {
   SOCKET_EVENTS,
   type EventStateSnapshot,
   type EventStatusName,
@@ -55,13 +63,57 @@ function validMaxParticipants(value: number): boolean {
   );
 }
 
+/** Título del evento de sugerencias: texto recortado de 2 a 40 caracteres. */
+function validSuggestionTitle(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.length >= MIN_SUGGESTION_TITLE_LENGTH &&
+    trimmed.length <= MAX_SUGGESTION_TITLE_LENGTH
+  );
+}
+
+/** Longitud máxima permitida para una sugerencia. */
+function validSuggestionMaxLength(value: number): boolean {
+  return (
+    Number.isInteger(value) &&
+    value >= MIN_SUGGESTION_MAX_LENGTH &&
+    value <= MAX_SUGGESTION_MAX_LENGTH
+  );
+}
+
+/** Palabra de inscripción al sorteo: una sola palabra de 2 a 20 caracteres. */
+function validRaffleCommand(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.length >= MIN_COMMAND_LENGTH &&
+    trimmed.length <= MAX_COMMAND_LENGTH &&
+    !/\s/.test(trimmed)
+  );
+}
+
 /** Config de un evento de Sugerencias (SUGGESTIONS), completa y válida. */
 function assertValidSuggestionsConfig(config: {
   suggestionDurationSec: number;
+  suggestionTitle: string;
+  igdbValidation: boolean;
+  suggestionMaxLength: number;
 }): void {
   if (!validDuration(config.suggestionDurationSec)) {
     throw new BusinessError(
       `La duración debe ser un entero entre ${MIN_DURATION_SEC} y ${MAX_DURATION_SEC} segundos`
+    );
+  }
+  if (!validSuggestionTitle(config.suggestionTitle)) {
+    throw new BusinessError(
+      `El título debe tener entre ${MIN_SUGGESTION_TITLE_LENGTH} y ${MAX_SUGGESTION_TITLE_LENGTH} caracteres`
+    );
+  }
+  if (typeof config.igdbValidation !== "boolean") {
+    throw new BusinessError("igdbValidation debe ser un booleano");
+  }
+  if (!validSuggestionMaxLength(config.suggestionMaxLength)) {
+    throw new BusinessError(
+      `La longitud máxima de sugerencia debe ser un entero entre ${MIN_SUGGESTION_MAX_LENGTH} y ${MAX_SUGGESTION_MAX_LENGTH}`
     );
   }
 }
@@ -96,6 +148,7 @@ function assertValidVotingConfig(config: {
 function assertValidRaffleConfig(config: {
   registrationDurationSec: number;
   maxParticipants: number | null;
+  raffleCommand: string;
 }): void {
   if (!validDuration(config.registrationDurationSec)) {
     throw new BusinessError(
@@ -108,6 +161,11 @@ function assertValidRaffleConfig(config: {
   ) {
     throw new BusinessError(
       `El máximo de participantes debe ser un entero entre ${MIN_MAX_PARTICIPANTS} y ${MAX_MAX_PARTICIPANTS}, o null (sin límite)`
+    );
+  }
+  if (!validRaffleCommand(config.raffleCommand)) {
+    throw new BusinessError(
+      `La palabra de inscripción debe ser una sola palabra de entre ${MIN_COMMAND_LENGTH} y ${MAX_COMMAND_LENGTH} caracteres`
     );
   }
 }
@@ -139,6 +197,10 @@ export async function createEvent(
     options?: string[];
     registrationDurationSec?: number;
     maxParticipants?: number | null;
+    raffleCommand?: string;
+    suggestionTitle?: string;
+    igdbValidation?: boolean;
+    suggestionMaxLength?: number;
   } = {}
 ) {
   const type = options.type ?? "SUGGESTIONS";
@@ -149,9 +211,17 @@ export async function createEvent(
   const registrationDurationSec =
     options.registrationDurationSec ?? DEFAULT_REGISTRATION_SEC;
   const maxParticipants = options.maxParticipants ?? null;
+  const raffleCommand = options.raffleCommand ?? "participo";
+  const suggestionTitle = options.suggestionTitle ?? "¿Qué jugamos?";
+  const igdbValidation = options.igdbValidation ?? true;
+  const suggestionMaxLength = options.suggestionMaxLength ?? 60;
 
   if (type === "RAFFLE") {
-    assertValidRaffleConfig({ registrationDurationSec, maxParticipants });
+    assertValidRaffleConfig({
+      registrationDurationSec,
+      maxParticipants,
+      raffleCommand,
+    });
   } else if (type === "VOTING") {
     assertValidVotingConfig({
       votingDurationSec,
@@ -160,7 +230,12 @@ export async function createEvent(
       options: options.options,
     });
   } else {
-    assertValidSuggestionsConfig({ suggestionDurationSec });
+    assertValidSuggestionsConfig({
+      suggestionDurationSec,
+      suggestionTitle,
+      igdbValidation,
+      suggestionMaxLength,
+    });
   }
 
   const active = await db.event.findFirst({
@@ -180,6 +255,10 @@ export async function createEvent(
       optionSource,
       registrationDurationSec,
       maxParticipants,
+      raffleCommand,
+      suggestionTitle,
+      igdbValidation,
+      suggestionMaxLength,
       rounds: { create: { number: 1, phase: "SUGGESTIONS" } },
       ...(type === "VOTING" && optionSource === "MANUAL" && options.options
         ? {
@@ -219,15 +298,17 @@ export async function updateEventConfig(
   if (type === "RAFFLE") {
     if (
       config.registrationDurationSec === undefined ||
-      config.maxParticipants === undefined
+      config.maxParticipants === undefined ||
+      config.raffleCommand === undefined
     ) {
       throw new BusinessError(
-        "El body debe incluir registrationDurationSec y maxParticipants"
+        "El body debe incluir registrationDurationSec, maxParticipants y raffleCommand"
       );
     }
     assertValidRaffleConfig({
       registrationDurationSec: config.registrationDurationSec,
       maxParticipants: config.maxParticipants,
+      raffleCommand: config.raffleCommand,
     });
     await db.event.update({
       where: { id: event.id },
@@ -235,6 +316,7 @@ export async function updateEventConfig(
         type,
         registrationDurationSec: config.registrationDurationSec,
         maxParticipants: config.maxParticipants,
+        raffleCommand: config.raffleCommand,
       },
     });
   } else if (type === "VOTING") {
@@ -278,17 +360,30 @@ export async function updateEventConfig(
         : []),
     ]);
   } else {
-    if (config.suggestionDurationSec === undefined) {
-      throw new BusinessError("El body debe incluir suggestionDurationSec");
+    if (
+      config.suggestionDurationSec === undefined ||
+      config.suggestionTitle === undefined ||
+      config.igdbValidation === undefined ||
+      config.suggestionMaxLength === undefined
+    ) {
+      throw new BusinessError(
+        "El body debe incluir suggestionDurationSec, suggestionTitle, igdbValidation y suggestionMaxLength"
+      );
     }
     assertValidSuggestionsConfig({
       suggestionDurationSec: config.suggestionDurationSec,
+      suggestionTitle: config.suggestionTitle,
+      igdbValidation: config.igdbValidation,
+      suggestionMaxLength: config.suggestionMaxLength,
     });
     await db.event.update({
       where: { id: event.id },
       data: {
         type,
         suggestionDurationSec: config.suggestionDurationSec,
+        suggestionTitle: config.suggestionTitle,
+        igdbValidation: config.igdbValidation,
+        suggestionMaxLength: config.suggestionMaxLength,
       },
     });
   }
@@ -351,8 +446,17 @@ export async function getLatestCompletedSuggestions(channelId: string) {
 export async function getCurrentSnapshot(
   channelId: string
 ): Promise<EventStateSnapshot> {
+  const channel = await db.channel.findUnique({ where: { id: channelId } });
+  const channelSettings: EventStateSnapshot["channel"] = {
+    themeColor: (channel?.themeColor ??
+      "violet") as EventStateSnapshot["channel"]["themeColor"],
+    alertSoundEnabled: channel?.alertSoundEnabled ?? true,
+    subsOnly: channel?.subsOnly ?? false,
+  };
+
   const empty: EventStateSnapshot = {
     channelId,
+    channel: channelSettings,
     event: null,
     round: null,
     suggestions: [],
@@ -421,6 +525,7 @@ export async function getCurrentSnapshot(
 
   return {
     channelId,
+    channel: channelSettings,
     event: {
       id: event.id,
       type: event.type,
@@ -432,6 +537,10 @@ export async function getCurrentSnapshot(
       manualOptions: event.eventOptions.map((o) => o.label),
       registrationDurationSec: event.registrationDurationSec,
       maxParticipants: event.maxParticipants,
+      raffleCommand: event.raffleCommand,
+      igdbValidation: event.igdbValidation,
+      suggestionMaxLength: event.suggestionMaxLength,
+      suggestionTitle: event.suggestionTitle,
       endedAt: event.endedAt?.toISOString() ?? null,
     },
     round: round

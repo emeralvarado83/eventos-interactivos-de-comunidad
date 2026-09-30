@@ -42,7 +42,7 @@ describe("normalizeGameName", () => {
 });
 
 describe("isValidSuggestionText", () => {
-  it("acepta textos entre 2 y 60 caracteres tras trim", () => {
+  it("acepta textos entre 2 y 60 caracteres tras trim (default)", () => {
     expect(isValidSuggestionText("ab")).toBe(true);
     expect(isValidSuggestionText("a".repeat(60))).toBe(true);
     expect(isValidSuggestionText("  Celeste  ")).toBe(true);
@@ -55,13 +55,25 @@ describe("isValidSuggestionText", () => {
     expect(isValidSuggestionText(" a ")).toBe(false);
     expect(isValidSuggestionText("a".repeat(61))).toBe(false);
   });
+
+  it("respeta una longitud máxima personalizada", () => {
+    expect(isValidSuggestionText("a".repeat(20), 20)).toBe(true);
+    expect(isValidSuggestionText("a".repeat(21), 20)).toBe(false);
+    expect(isValidSuggestionText("a".repeat(100), 140)).toBe(true);
+  });
 });
 
 describe("addSuggestion (validación IGDB)", () => {
   const activeRound = {
     id: "round-1",
     phase: "SUGGESTIONS",
-    event: { id: "event-1", status: "SUGGESTIONS_ACTIVE", channelId: "ch-1" },
+    event: {
+      id: "event-1",
+      status: "SUGGESTIONS_ACTIVE",
+      channelId: "ch-1",
+      igdbValidation: true,
+      suggestionMaxLength: 60,
+    },
   };
 
   function createdSuggestion(gameName: string) {
@@ -138,6 +150,34 @@ describe("addSuggestion (validación IGDB)", () => {
     expect(mocks.db.suggestion.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ gameName: "Fangame Oscuro" }),
     });
+  });
+
+  it("con igdbValidation=false en el evento no consulta el catálogo", async () => {
+    mocks.db.round.findUnique.mockResolvedValue({
+      ...activeRound,
+      event: { ...activeRound.event, igdbValidation: false },
+    });
+
+    const result = await addSuggestion("round-1", "user-1", "viewer", "Serie de TV");
+
+    expect(result).toBe("added");
+    expect(mocks.resolveGameName).not.toHaveBeenCalled();
+    expect(mocks.db.suggestion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ gameName: "Serie de TV", igdbGameId: null }),
+    });
+  });
+
+  it("respeta la longitud máxima configurada en el evento", async () => {
+    mocks.db.round.findUnique.mockResolvedValue({
+      ...activeRound,
+      event: { ...activeRound.event, suggestionMaxLength: 10 },
+    });
+
+    expect(await addSuggestion("round-1", "user-1", "viewer", "a".repeat(11))).toBe("ignored");
+    expect(mocks.db.suggestion.create).not.toHaveBeenCalled();
+
+    mocks.resolveGameName.mockResolvedValue({ igdbGameId: 1, officialName: "Celeste" });
+    expect(await addSuggestion("round-1", "user-1", "viewer", "Celeste")).toBe("added");
   });
 
   it("el veto se comprueba sobre el nombre canónico (cubre todos los typos)", async () => {

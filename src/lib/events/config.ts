@@ -21,7 +21,21 @@ export interface EventConfigInput {
   registrationDurationSec?: number;
   /** null explícito = sin límite de participantes. */
   maxParticipants?: number | null;
+  /** Palabra exacta que inscribe al sorteo (una palabra, 2-20 caracteres). */
+  raffleCommand?: string;
+  /** false = sugerencias de texto libre, sin validar contra IGDB. */
+  igdbValidation?: boolean;
+  suggestionMaxLength?: number;
+  /** Título visible del evento de sugerencias. */
+  suggestionTitle?: string;
 }
+
+export const MIN_SUGGESTION_TITLE_LENGTH = 2;
+export const MAX_SUGGESTION_TITLE_LENGTH = 40;
+export const MIN_SUGGESTION_MAX_LENGTH = 10;
+export const MAX_SUGGESTION_MAX_LENGTH = 140;
+export const MIN_COMMAND_LENGTH = 2;
+export const MAX_COMMAND_LENGTH = 20;
 
 function isValidDuration(value: unknown): value is number {
   return (
@@ -54,6 +68,10 @@ export function parseEventConfig(body: unknown): EventConfigInput {
     options,
     registrationDurationSec,
     maxParticipants,
+    raffleCommand,
+    igdbValidation,
+    suggestionMaxLength,
+    suggestionTitle,
   } = body as Record<string, unknown>;
 
   if (
@@ -131,6 +149,55 @@ export function parseEventConfig(body: unknown): EventConfigInput {
     );
   }
 
+  let cleanCommand: string | undefined;
+  if (raffleCommand !== undefined) {
+    if (typeof raffleCommand !== "string") {
+      throw new BusinessError("raffleCommand debe ser un texto");
+    }
+    cleanCommand = raffleCommand.trim().toLowerCase();
+    if (
+      cleanCommand.length < MIN_COMMAND_LENGTH ||
+      cleanCommand.length > MAX_COMMAND_LENGTH ||
+      /\s/.test(cleanCommand)
+    ) {
+      throw new BusinessError(
+        `raffleCommand debe ser una sola palabra de entre ${MIN_COMMAND_LENGTH} y ${MAX_COMMAND_LENGTH} caracteres`
+      );
+    }
+  }
+
+  if (igdbValidation !== undefined && typeof igdbValidation !== "boolean") {
+    throw new BusinessError("igdbValidation debe ser un booleano");
+  }
+
+  if (
+    suggestionMaxLength !== undefined &&
+    (typeof suggestionMaxLength !== "number" ||
+      !Number.isInteger(suggestionMaxLength) ||
+      suggestionMaxLength < MIN_SUGGESTION_MAX_LENGTH ||
+      suggestionMaxLength > MAX_SUGGESTION_MAX_LENGTH)
+  ) {
+    throw new BusinessError(
+      `suggestionMaxLength debe ser un entero entre ${MIN_SUGGESTION_MAX_LENGTH} y ${MAX_SUGGESTION_MAX_LENGTH}`
+    );
+  }
+
+  let cleanTitle: string | undefined;
+  if (suggestionTitle !== undefined) {
+    if (typeof suggestionTitle !== "string") {
+      throw new BusinessError("suggestionTitle debe ser un texto");
+    }
+    cleanTitle = suggestionTitle.trim();
+    if (
+      cleanTitle.length < MIN_SUGGESTION_TITLE_LENGTH ||
+      cleanTitle.length > MAX_SUGGESTION_TITLE_LENGTH
+    ) {
+      throw new BusinessError(
+        `suggestionTitle debe tener entre ${MIN_SUGGESTION_TITLE_LENGTH} y ${MAX_SUGGESTION_TITLE_LENGTH} caracteres`
+      );
+    }
+  }
+
   return {
     type: type as EventTypeName | undefined,
     suggestionDurationSec: suggestionDurationSec as number | undefined,
@@ -146,5 +213,9 @@ export function parseEventConfig(body: unknown): EventConfigInput {
       maxParticipants === undefined
         ? undefined
         : (maxParticipants as number | null),
+    raffleCommand: cleanCommand,
+    igdbValidation: igdbValidation as boolean | undefined,
+    suggestionMaxLength: suggestionMaxLength as number | undefined,
+    suggestionTitle: cleanTitle,
   };
 }

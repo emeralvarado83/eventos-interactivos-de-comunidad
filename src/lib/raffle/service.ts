@@ -24,11 +24,12 @@ import { clearPhaseTimer, schedulePhaseTimer } from "@/lib/timers";
 /** Duración de la animación "Seleccionando ganador…" antes de revelar. */
 export const DRAWING_DURATION_SEC = 5;
 
-const PARTICIPANT_COMMAND = "participo";
-
-/** ¿El mensaje es exactamente el comando de participación? */
-export function isParticipationCommand(text: string): boolean {
-  return text.trim().toLowerCase() === PARTICIPANT_COMMAND;
+/**
+ * ¿El mensaje es exactamente el comando de participación configurado en el
+ * evento? Comparación case-insensitive.
+ */
+export function isParticipationCommand(text: string, command: string): boolean {
+  return text.trim().toLowerCase() === command.trim().toLowerCase();
 }
 
 /** Índice ganador en [0, count). rng inyectable para tests deterministas. */

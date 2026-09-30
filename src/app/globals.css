@@ -3,6 +3,85 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Tripletes RGB del color de tema para los rgba() del overlay (event-core)
+     y las sombras arbitrarias de los componentes. Violeta por defecto. */
+  --theme-glow-100: 237 233 254;
+  --theme-glow-200: 221 214 254;
+  --theme-glow-300: 196 181 253;
+  --theme-glow-400: 167 139 250;
+  --theme-glow-500: 139 92 246;
+  --theme-glow-700: 109 40 217;
+}
+
+/*
+ * Temas de color (página Configuración del canal). Tailwind v4 resuelve las
+ * clases *-violet-* contra var(--color-violet-*) en tiempo de ejecución, así
+ * que redefinir esas variables dentro de [data-theme] recolorea overlay y
+ * dashboard sin tocar los componentes. El tema "violet" es el default y no
+ * necesita bloque.
+ */
+[data-theme="cyan"] {
+  --color-violet-100: #cffafe;
+  --color-violet-200: #a5f3fc;
+  --color-violet-300: #67e8f9;
+  --color-violet-400: #22d3ee;
+  --color-violet-500: #06b6d4;
+  --color-violet-600: #0891b2;
+  --color-violet-700: #0e7490;
+  --theme-glow-100: 207 250 254;
+  --theme-glow-200: 165 243 252;
+  --theme-glow-300: 103 232 249;
+  --theme-glow-400: 34 211 238;
+  --theme-glow-500: 6 182 212;
+  --theme-glow-700: 14 116 144;
+}
+
+[data-theme="pink"] {
+  --color-violet-100: #fce7f3;
+  --color-violet-200: #fbcfe8;
+  --color-violet-300: #f9a8d4;
+  --color-violet-400: #f472b6;
+  --color-violet-500: #ec4899;
+  --color-violet-600: #db2777;
+  --color-violet-700: #be185d;
+  --theme-glow-100: 252 231 243;
+  --theme-glow-200: 251 207 232;
+  --theme-glow-300: 249 168 212;
+  --theme-glow-400: 244 114 182;
+  --theme-glow-500: 236 72 153;
+  --theme-glow-700: 190 24 93;
+}
+
+[data-theme="red"] {
+  --color-violet-100: #fee2e2;
+  --color-violet-200: #fecaca;
+  --color-violet-300: #fca5a5;
+  --color-violet-400: #f87171;
+  --color-violet-500: #ef4444;
+  --color-violet-600: #dc2626;
+  --color-violet-700: #b91c1c;
+  --theme-glow-100: 254 226 226;
+  --theme-glow-200: 254 202 202;
+  --theme-glow-300: 252 165 165;
+  --theme-glow-400: 248 113 113;
+  --theme-glow-500: 239 68 68;
+  --theme-glow-700: 185 28 28;
+}
+
+[data-theme="green"] {
+  --color-violet-100: #dcfce7;
+  --color-violet-200: #bbf7d0;
+  --color-violet-300: #86efac;
+  --color-violet-400: #4ade80;
+  --color-violet-500: #22c55e;
+  --color-violet-600: #16a34a;
+  --color-violet-700: #15803d;
+  --theme-glow-100: 220 252 231;
+  --theme-glow-200: 187 247 208;
+  --theme-glow-300: 134 239 172;
+  --theme-glow-400: 74 222 128;
+  --theme-glow-500: 34 197 94;
+  --theme-glow-700: 21 128 61;
 }
 
 @theme inline {
@@ -61,7 +140,7 @@
   gap: 10px;
   padding: 18px 16px 14px;
   border-radius: 16px;
-  border: 1px solid rgba(167, 139, 250, 0.4);
+  border: 1px solid rgba(var(--theme-glow-400), 0.4);
   background: rgba(12, 7, 24, 0.92);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
   overflow: hidden;
@@ -72,7 +151,7 @@
   position: absolute;
   width: 14px;
   height: 14px;
-  border-color: rgba(167, 139, 250, 0.8);
+  border-color: rgba(var(--theme-glow-400), 0.8);
   border-style: solid;
   border-width: 0;
 }
@@ -112,7 +191,7 @@
   font-size: 8px;
   font-weight: 900;
   letter-spacing: 0.3em;
-  color: rgba(196, 181, 253, 0.45);
+  color: rgba(var(--theme-glow-300), 0.45);
   text-transform: uppercase;
   animation: event-core-tag-blink 8s ease-in-out infinite;
 }
@@ -154,19 +233,19 @@
   stroke-linecap: round;
 }
 .event-core__ring--outer {
-  stroke: rgba(167, 139, 250, 0.5);
+  stroke: rgba(var(--theme-glow-400), 0.5);
   stroke-width: 2;
   stroke-dasharray: 40 22 12 22;
   animation: event-core-spin 16s linear infinite;
 }
 .event-core__ring--mid {
-  stroke: rgba(196, 181, 253, 0.65);
+  stroke: rgba(var(--theme-glow-300), 0.65);
   stroke-width: 2.5;
   stroke-dasharray: 24 14 60 14;
   animation: event-core-spin-reverse 11s linear infinite;
 }
 .event-core__ring--inner {
-  stroke: rgba(139, 92, 246, 0.8);
+  stroke: rgba(var(--theme-glow-500), 0.8);
   stroke-width: 3;
   stroke-dasharray: 10 8;
   animation: event-core-spin 7s linear infinite;
@@ -194,10 +273,10 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(216, 180, 254, 0.95),
+    rgba(var(--theme-glow-300), 0.95),
     transparent
   );
-  box-shadow: 0 0 12px rgba(167, 139, 250, 0.9);
+  box-shadow: 0 0 12px rgba(var(--theme-glow-400), 0.9);
   opacity: 0;
   animation: event-core-scan 8s ease-in-out infinite;
 }
@@ -234,7 +313,7 @@
   justify-content: center;
   border-radius: 999px;
   color: #fff;
-  background: linear-gradient(135deg, #a78bfa, #6d28d9);
+  background: linear-gradient(135deg, rgb(var(--theme-glow-400)), rgb(var(--theme-glow-700)));
   animation: event-core-glow 8s ease-in-out infinite;
 }
 
@@ -242,32 +321,32 @@
   0%,
   100% {
     box-shadow:
-      0 0 14px rgba(139, 92, 246, 0.35),
+      0 0 14px rgba(var(--theme-glow-500), 0.35),
       inset 0 0 8px rgba(255, 255, 255, 0.12);
     transform: scale(1);
   }
   25% {
     box-shadow:
-      0 0 22px rgba(139, 92, 246, 0.5),
+      0 0 22px rgba(var(--theme-glow-500), 0.5),
       inset 0 0 10px rgba(255, 255, 255, 0.16);
     transform: scale(1.03);
   }
   50% {
     box-shadow:
-      0 0 14px rgba(139, 92, 246, 0.35),
+      0 0 14px rgba(var(--theme-glow-500), 0.35),
       inset 0 0 8px rgba(255, 255, 255, 0.12);
     transform: scale(1);
   }
   58% {
     /* El scan atraviesa el orbe: brillo máximo */
     box-shadow:
-      0 0 34px rgba(196, 181, 253, 0.85),
+      0 0 34px rgba(var(--theme-glow-300), 0.85),
       inset 0 0 14px rgba(255, 255, 255, 0.3);
     transform: scale(1.07);
   }
   78% {
     box-shadow:
-      0 0 20px rgba(139, 92, 246, 0.45),
+      0 0 20px rgba(var(--theme-glow-500), 0.45),
       inset 0 0 10px rgba(255, 255, 255, 0.14);
     transform: scale(1.02);
   }
@@ -279,8 +358,8 @@
   width: 4px;
   height: 4px;
   border-radius: 999px;
-  background: #d8b4fe;
-  box-shadow: 0 0 8px rgba(216, 180, 254, 0.9);
+  background: rgb(var(--theme-glow-300));
+  box-shadow: 0 0 8px rgba(var(--theme-glow-300), 0.9);
   opacity: 0;
   animation: event-core-particle 8s ease-in-out infinite;
 }
@@ -329,7 +408,7 @@
   font-weight: 900;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: rgba(221, 214, 254, 0.85);
+  color: rgba(var(--theme-glow-200), 0.85);
 }
 
 .event-core__dots span {
@@ -356,11 +435,11 @@
 
 /* Estado "activating": evento detectado, carga y revelado (~1.1s) */
 .event-core--activating {
-  border-color: rgba(196, 181, 253, 0.9);
+  border-color: rgba(var(--theme-glow-300), 0.9);
 }
 .event-core--activating .event-core__ring {
   animation-duration: 0.9s;
-  stroke: rgba(216, 180, 254, 0.95);
+  stroke: rgba(var(--theme-glow-300), 0.95);
 }
 .event-core--activating .event-core__scan {
   animation: none;
@@ -374,20 +453,20 @@
   animation: event-core-charge 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 .event-core--activating .event-core__label {
-  color: #ede9fe;
-  text-shadow: 0 0 12px rgba(196, 181, 253, 0.9);
+  color: rgb(var(--theme-glow-100));
+  text-shadow: 0 0 12px rgba(var(--theme-glow-300), 0.9);
 }
 
 @keyframes event-core-charge {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 14px rgba(139, 92, 246, 0.35);
+    box-shadow: 0 0 14px rgba(var(--theme-glow-500), 0.35);
     filter: brightness(1);
     opacity: 1;
   }
   30% {
     transform: scale(1.22);
-    box-shadow: 0 0 40px rgba(196, 181, 253, 0.95);
+    box-shadow: 0 0 40px rgba(var(--theme-glow-300), 0.95);
     filter: brightness(1.7);
     opacity: 1;
   }
@@ -398,7 +477,7 @@
   }
   100% {
     transform: scale(1.6);
-    box-shadow: 0 0 70px rgba(216, 180, 254, 1);
+    box-shadow: 0 0 70px rgba(var(--theme-glow-300), 1);
     filter: brightness(2);
     opacity: 0;
   }
@@ -415,7 +494,7 @@
   }
   .event-core__orb {
     box-shadow:
-      0 0 18px rgba(139, 92, 246, 0.45),
+      0 0 18px rgba(var(--theme-glow-500), 0.45),
       inset 0 0 10px rgba(255, 255, 255, 0.14);
   }
 }
