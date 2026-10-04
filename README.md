@@ -1,6 +1,6 @@
 # Plataforma de eventos interactivos para Twitch
 
-Plataforma web para que streamers de Twitch creen eventos interactivos (sugerencias y votaciones, sorteos) con participación de su audiencia en tiempo real. Proyecto Next.js integrado: el frontend y el backend viven en el mismo repositorio, servidos por un servidor Node personalizado (`server.ts`) sobre el que se integrarán Socket.IO y el listener de Twitch EventSub en fases futuras.
+Plataforma web para que streamers de Twitch creen eventos interactivos (sugerencias, encuestas y sorteos) con participación de su audiencia en tiempo real. Proyecto Next.js integrado: el frontend y el backend viven en el mismo repositorio, servidos por un servidor Node personalizado (`server.ts`) que integra Socket.IO y el listener de Twitch EventSub en el mismo proceso.
 
 ## Stack
 
@@ -77,16 +77,16 @@ Para obtener el `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET` del `.env`:
 | `npm start`          | `cross-env NODE_ENV=production tsx server.ts`    | Arranca el servidor en modo producción            |
 | `npm run lint`       | `eslint`                                         | Análisis estático del código                      |
 | `npm run db:up`      | `docker compose up -d`                           | Levanta PostgreSQL en segundo plano               |
-| `npm run db:migrate` | `prisma migrate dev`                             | Crea/aplica migraciones (a partir de la Fase 2)   |
+| `npm run db:migrate` | `prisma migrate dev`                             | Crea/aplica migraciones                           |
 | `npm run db:generate`| `prisma generate`                                | Regenera el cliente de Prisma                     |
 | `npm test`           | `vitest run`                                     | Tests de las reglas de negocio (sin DB)           |
 
 ## Uso
 
 1. Inicia sesión con Twitch desde la landing (`/`).
-2. En `/dashboard` crea un evento (sugerencias, votación o sorteo), inícialo y contrólalo. Todo cambio se refleja en tiempo real vía Socket.IO.
+2. En `/dashboard` crea un evento (sugerencias, encuesta o sorteo), inícialo y contrólalo. Todo cambio se refleja en tiempo real vía Socket.IO. En la encuesta, las opciones pueden escribirse a mano o importarse desde las sugerencias del último evento de sugerencias finalizado (en ese caso el título es fijo: «¿Cuál jugamos?»). En `/dashboard/configuracion` se puede activar el modo "solo suscriptores" para la participación del chat (mods y broadcaster exentos).
 3. Añade en OBS un **Browser Source** con la URL del overlay (`/overlay/<channelId>`, visible y copiable desde el dashboard). El fondo es transparente.
-4. Participación del chat: durante las sugerencias, cualquier mensaje de texto válido es una sugerencia; durante la votación, un número (posición en la lista) es un voto; durante la inscripción de un sorteo, el comando `!participo` inscribe al espectador (una sola vez). Nunca se responde al chat.
+4. Participación del chat: durante las sugerencias, cualquier mensaje de texto válido es una sugerencia; durante la votación, un número (posición en la lista) es un voto; durante la inscripción de un sorteo, el comando de participación configurado en el dashboard (`participo` por defecto) inscribe al espectador (una sola vez). Nunca se responde al chat.
 5. Las sugerencias se validan contra el catálogo IGDB: los typos se canonizan al título oficial ("Elden Rign" → "Elden Ring", también abreviaturas como "GTA V") y lo que no sea un juego real se descarta silenciosamente. Si IGDB no responde, la sugerencia se acepta igual (fail-open). Se puede desactivar con `IGDB_VALIDATION=off`.
 
 ## Estructura relevante
@@ -99,7 +99,7 @@ Para obtener el `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET` del `.env`:
 - `src/lib/events/` — máquina de estados y servicio de eventos/rondas (transiciones, timers autoridad-servidor, snapshot).
 - `src/lib/suggestions/` y `src/lib/voting/` — reglas de sugerencias (normalización, validación IGDB, veto) y de votación (posiciones estables, ranking, empate).
 - `src/lib/igdb/` — cliente del catálogo IGDB (app access token, cola de 4 req/s, caché con TTL, matching difuso por similitud y nombres alternativos).
-- `src/lib/raffle/` — reglas del sorteo (inscripción con `!participo`, selección aleatoria del ganador, re-sorteo con exclusión de ganadores previos).
+- `src/lib/raffle/` — reglas del sorteo (inscripción con el comando configurado, selección aleatoria del ganador, re-sorteo con exclusión de ganadores previos).
 - `src/lib/realtime/` — contratos compartidos y emisión Socket.IO (rooms por canal).
 - `src/lib/chat/processor.ts` — enrutado de mensajes del chat a sugerencias/votos/participantes (sin respuestas al chat).
 - `src/app/dashboard/` — panel de control del streamer; `src/app/overlay/[channelId]/` — overlay público para OBS.

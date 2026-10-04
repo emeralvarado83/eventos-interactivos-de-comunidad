@@ -175,55 +175,32 @@ describe("parseEventConfig", () => {
     );
   });
 
-  it("acepta la config completa de sugerencias y recorta el título", () => {
+  it("acepta la config completa de sugerencias", () => {
     expect(
       parseEventConfig({
         type: "SUGGESTIONS",
         suggestionDurationSec: 120,
-        suggestionTitle: "  ¿Qué serie vemos?  ",
-        igdbValidation: false,
-        suggestionMaxLength: 100,
       })
     ).toEqual({
       type: "SUGGESTIONS",
       suggestionDurationSec: 120,
-      suggestionTitle: "¿Qué serie vemos?",
-      igdbValidation: false,
-      suggestionMaxLength: 100,
     });
   });
 
-  it("rechaza un suggestionTitle inválido", () => {
-    expect(() => parseEventConfig({ suggestionTitle: "a" })).toThrow(
-      /suggestionTitle/
-    );
-    expect(() =>
-      parseEventConfig({ suggestionTitle: "x".repeat(41) })
-    ).toThrow(/suggestionTitle/);
-    expect(() => parseEventConfig({ suggestionTitle: 42 })).toThrow(
-      /suggestionTitle/
-    );
-  });
-
-  it("rechaza un suggestionMaxLength fuera de rango", () => {
-    expect(() => parseEventConfig({ suggestionMaxLength: 9 })).toThrow(
-      /suggestionMaxLength/
-    );
-    expect(() => parseEventConfig({ suggestionMaxLength: 141 })).toThrow(
-      /suggestionMaxLength/
-    );
-    expect(() => parseEventConfig({ suggestionMaxLength: "60" })).toThrow(
-      /suggestionMaxLength/
-    );
-  });
-
-  it("rechaza un igdbValidation que no es booleano", () => {
-    expect(() => parseEventConfig({ igdbValidation: "si" })).toThrow(
-      /igdbValidation/
-    );
-    expect(parseEventConfig({ igdbValidation: true })).toEqual({
-      igdbValidation: true,
+  it("acepta un votingTitle válido y lo recorta", () => {
+    expect(parseEventConfig({ votingTitle: "  ¿Cuál es mejor?  " })).toEqual({
+      votingTitle: "¿Cuál es mejor?",
     });
+  });
+
+  it("rechaza un votingTitle inválido", () => {
+    expect(() => parseEventConfig({ votingTitle: "a" })).toThrow(
+      /votingTitle/
+    );
+    expect(() => parseEventConfig({ votingTitle: "x".repeat(41) })).toThrow(
+      /votingTitle/
+    );
+    expect(() => parseEventConfig({ votingTitle: 42 })).toThrow(/votingTitle/);
   });
 
   it("acepta un raffleCommand válido y lo normaliza a minúsculas", () => {

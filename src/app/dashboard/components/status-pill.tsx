@@ -14,11 +14,11 @@ const STATUS_STYLES: Record<EventStatusName, { label: string; classes: string }>
     classes: "border-amber-400/50 bg-amber-400/10 text-amber-300",
   },
   VOTING_ACTIVE: {
-    label: "Votación abierta",
+    label: "Encuesta abierta",
     classes: "border-emerald-500/50 bg-emerald-500/15 text-emerald-300",
   },
   VOTING_FINISHED: {
-    label: "Votación cerrada",
+    label: "Encuesta cerrada",
     classes: "border-amber-400/50 bg-amber-400/10 text-amber-300",
   },
   TIE: {

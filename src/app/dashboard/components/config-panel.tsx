@@ -8,12 +8,10 @@ import {
   type EventTypeName,
   type OptionSourceName,
 } from "@/lib/realtime/contracts";
-import { EVENT_TYPE_META } from "@/lib/branding";
+import { EVENT_TYPE_META, FROM_SUGGESTIONS_VOTING_TITLE } from "@/lib/branding";
 import {
   MAX_COMMAND_LENGTH,
-  MAX_SUGGESTION_MAX_LENGTH,
-  MAX_SUGGESTION_TITLE_LENGTH,
-  MIN_SUGGESTION_MAX_LENGTH,
+  MAX_EVENT_TITLE_LENGTH,
 } from "@/lib/events/config";
 
 interface ConfigPanelProps {
@@ -21,15 +19,13 @@ interface ConfigPanelProps {
   type: EventTypeName;
   suggestionDurationSec: number;
   votingDurationSec: number;
+  /** Título de la encuesta (type = VOTING), editable. */
+  votingTitle: string;
   maxOptions: number;
   optionSource: OptionSourceName;
   manualOptions: string[];
   registrationDurationSec: number;
   maxParticipants: number | null;
-  /** Config de sugerencias (type = SUGGESTIONS). */
-  suggestionTitle: string;
-  igdbValidation: boolean;
-  suggestionMaxLength: number;
   /** Palabra de inscripción del sorteo (type = RAFFLE). */
   raffleCommand: string;
   /** Solo editable mientras el evento está en DRAFT. */
@@ -110,7 +106,7 @@ const MAX_MINUTES = 60;
 const OPTION_SOURCE_META: Record<OptionSourceName, { label: string; hint: string }> = {
   MANUAL: {
     label: "Opciones manuales",
-    hint: "Escribe tú la lista de opciones de la votación.",
+    hint: "Escribe tú la lista de opciones de la encuesta.",
   },
   FROM_SUGGESTIONS: {
     label: "Desde sugerencias",
@@ -145,14 +141,12 @@ function ConfigForm({
   type,
   suggestionDurationSec,
   votingDurationSec,
+  votingTitle,
   maxOptions,
   optionSource,
   manualOptions,
   registrationDurationSec,
   maxParticipants,
-  suggestionTitle,
-  igdbValidation,
-  suggestionMaxLength,
   raffleCommand,
   editable,
   pending,
@@ -165,6 +159,9 @@ function ConfigForm({
   const [votingMin, setVotingMin] = useState(
     Math.round(votingDurationSec / 60)
   );
+  const [pollTitle, setPollTitle] = useState(votingTitle);
+  // Último título escrito en modo manual; se restaura al volver a ese origen.
+  const [manualTitle, setManualTitle] = useState(votingTitle);
   const [maxOpts, setMaxOpts] = useState(maxOptions);
   const [source, setSource] = useState<OptionSourceName>(optionSource);
   const [options, setOptions] = useState<string[]>(manualOptions);
@@ -176,22 +173,17 @@ function ConfigForm({
   const [participants, setParticipants] = useState(
     maxParticipants ?? DEFAULT_MAX_PARTICIPANTS
   );
-  const [title, setTitle] = useState(suggestionTitle);
-  const [igdb, setIgdb] = useState(igdbValidation);
-  const [maxLen, setMaxLen] = useState(suggestionMaxLength);
   const [command, setCommand] = useState(raffleCommand);
   const [prevProps, setPrevProps] = useState({
     type,
     suggestionDurationSec,
     votingDurationSec,
+    votingTitle,
     maxOptions,
     optionSource,
     manualOptionsKey: manualOptions.join(""),
     registrationDurationSec,
     maxParticipants,
-    suggestionTitle,
-    igdbValidation,
-    suggestionMaxLength,
     raffleCommand,
   });
 
@@ -201,33 +193,31 @@ function ConfigForm({
     prevProps.type !== type ||
     prevProps.suggestionDurationSec !== suggestionDurationSec ||
     prevProps.votingDurationSec !== votingDurationSec ||
+    prevProps.votingTitle !== votingTitle ||
     prevProps.maxOptions !== maxOptions ||
     prevProps.optionSource !== optionSource ||
     prevProps.manualOptionsKey !== manualOptionsKey ||
     prevProps.registrationDurationSec !== registrationDurationSec ||
     prevProps.maxParticipants !== maxParticipants ||
-    prevProps.suggestionTitle !== suggestionTitle ||
-    prevProps.igdbValidation !== igdbValidation ||
-    prevProps.suggestionMaxLength !== suggestionMaxLength ||
     prevProps.raffleCommand !== raffleCommand
   ) {
     setPrevProps({
       type,
       suggestionDurationSec,
       votingDurationSec,
+      votingTitle,
       maxOptions,
       optionSource,
       manualOptionsKey,
       registrationDurationSec,
       maxParticipants,
-      suggestionTitle,
-      igdbValidation,
-      suggestionMaxLength,
       raffleCommand,
     });
     setSelectedType(type);
     setSuggestionMin(Math.round(suggestionDurationSec / 60));
     setVotingMin(Math.round(votingDurationSec / 60));
+    setPollTitle(votingTitle);
+    setManualTitle(votingTitle);
     setMaxOpts(maxOptions);
     setSource(optionSource);
     setOptions(manualOptions);
@@ -235,9 +225,6 @@ function ConfigForm({
     setRegistrationMin(Math.round(registrationDurationSec / 60));
     setUnlimited(maxParticipants === null);
     setParticipants(maxParticipants ?? DEFAULT_MAX_PARTICIPANTS);
-    setTitle(suggestionTitle);
-    setIgdb(igdbValidation);
-    setMaxLen(suggestionMaxLength);
     setCommand(raffleCommand);
   }
 
@@ -260,20 +247,18 @@ function ConfigForm({
     cleanOptions.every((o) => o.length >= 2 && o.length <= MAX_OPTION_LENGTH) &&
     new Set(normalized).size === normalized.length;
 
-  const titleValid =
-    title.trim().length >= 2 && title.trim().length <= MAX_SUGGESTION_TITLE_LENGTH;
-  const maxLenValid =
-    Number.isInteger(maxLen) &&
-    maxLen >= MIN_SUGGESTION_MAX_LENGTH &&
-    maxLen <= MAX_SUGGESTION_MAX_LENGTH;
   const commandValid =
     command.trim().length >= 2 &&
     command.trim().length <= MAX_COMMAND_LENGTH &&
     !/\s/.test(command.trim());
 
+  const pollTitleValid =
+    pollTitle.trim().length >= 2 &&
+    pollTitle.trim().length <= MAX_EVENT_TITLE_LENGTH;
+
   const canSave =
-    (selectedType !== "VOTING" || source !== "MANUAL" || optionsValid) &&
-    (selectedType !== "SUGGESTIONS" || (titleValid && maxLenValid)) &&
+    (selectedType !== "VOTING" ||
+      (pollTitleValid && (source !== "MANUAL" || optionsValid))) &&
     (selectedType !== "RAFFLE" || commandValid);
 
   function save() {
@@ -288,6 +273,7 @@ function ConfigForm({
       onSave({
         type: "VOTING",
         votingDurationSec: votingMin * 60,
+        votingTitle: pollTitle.trim(),
         maxOptions: maxOpts,
         optionSource: source,
         ...(source === "MANUAL" ? { options: cleanOptions } : {}),
@@ -296,9 +282,6 @@ function ConfigForm({
       onSave({
         type: "SUGGESTIONS",
         suggestionDurationSec: suggestionMin * 60,
-        suggestionTitle: title.trim(),
-        igdbValidation: igdb,
-        suggestionMaxLength: maxLen,
       });
     }
   }
@@ -333,72 +316,32 @@ function ConfigForm({
       </div>
 
       {selectedType === "SUGGESTIONS" && (
-        <>
-          <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
-            Duración de sugerencias
-            <DurationInput
-              value={suggestionMin}
-              onChange={setSuggestionMin}
-              disabled={!editable}
-            />
-          </label>
-
-          <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
-            Título del evento
-            <input
-              type="text"
-              maxLength={MAX_SUGGESTION_TITLE_LENGTH}
-              disabled={!editable}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={INPUT_CLASS}
-            />
-            <span className="text-[11px] font-medium text-zinc-600">
-              Se muestra en el dashboard y en el overlay (ej. «¿Qué jugamos?»).
-            </span>
-          </label>
-
-          <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-zinc-400">
-            <input
-              type="checkbox"
-              checked={igdb}
-              disabled={!editable}
-              onChange={(e) => setIgdb(e.target.checked)}
-              className="h-4 w-4 accent-violet-500 disabled:cursor-not-allowed"
-            />
-            Validar juegos con IGDB
-          </label>
-          {!igdb && (
-            <p className="rounded-lg border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-[11px] font-medium text-amber-300">
-              Sin validación IGDB el chat puede sugerir cualquier texto libre
-              (útil para eventos que no son de videojuegos). Ajusta el título
-              para que sea coherente.
-            </p>
-          )}
-
-          <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
-            Longitud máxima de sugerencia
-            <input
-              type="number"
-              min={MIN_SUGGESTION_MAX_LENGTH}
-              max={MAX_SUGGESTION_MAX_LENGTH}
-              disabled={!editable}
-              value={maxLen}
-              onChange={(e) => setMaxLen(Number(e.target.value))}
-              className={INPUT_CLASS}
-            />
-            <span className="text-[11px] font-medium text-zinc-600">
-              Entre {MIN_SUGGESTION_MAX_LENGTH} y {MAX_SUGGESTION_MAX_LENGTH}{" "}
-              caracteres.
-            </span>
-          </label>
-        </>
+        <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
+          Duración de sugerencias
+          <DurationInput
+            value={suggestionMin}
+            onChange={setSuggestionMin}
+            disabled={!editable}
+          />
+        </label>
       )}
 
       {selectedType === "VOTING" && (
         <>
           <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
-            Duración de votación
+            Título de la encuesta
+            <input
+              type="text"
+              maxLength={MAX_EVENT_TITLE_LENGTH}
+              disabled={!editable || source === "FROM_SUGGESTIONS"}
+              value={pollTitle}
+              onChange={(e) => setPollTitle(e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-xs font-semibold text-zinc-400">
+            Duración de la encuesta
             <DurationInput
               value={votingMin}
               onChange={setVotingMin}
@@ -419,7 +362,17 @@ function ConfigForm({
                     type="button"
                     disabled={!editable}
                     aria-pressed={selected}
-                    onClick={() => setSource(s)}
+                    onClick={() => {
+                      if (s === source) return;
+                      if (s === "FROM_SUGGESTIONS") {
+                        // Guarda el título manual y fija el de sugerencias.
+                        setManualTitle(pollTitle);
+                        setPollTitle(FROM_SUGGESTIONS_VOTING_TITLE);
+                      } else {
+                        setPollTitle(manualTitle);
+                      }
+                      setSource(s);
+                    }}
                     className={`rounded-xl border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       selected
                         ? "border-violet-400/70 bg-violet-500/20"
@@ -445,7 +398,7 @@ function ConfigForm({
           {source === "MANUAL" ? (
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-semibold text-zinc-400">
-                Opciones de la votación{" "}
+                Opciones de la encuesta{" "}
                 <span className="font-medium text-zinc-600">
                   ({cleanOptions.length}/{MAX_OPTIONS} · mínimo {MIN_OPTIONS})
                 </span>

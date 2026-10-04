@@ -14,7 +14,7 @@ import { SOCKET_EVENTS, type SuggestionView } from "@/lib/realtime/contracts";
 import { publishEventState } from "@/lib/events/service";
 
 const MIN_LENGTH = 2;
-const DEFAULT_MAX_LENGTH = 60;
+const DEFAULT_MAX_LENGTH = 100;
 
 /** Normalización para deduplicar: lowercase + trim + colapsar espacios. */
 export function normalizeGameName(name: string): string {

@@ -6,6 +6,7 @@ import { formatCountdown, useCountdown } from "@/hooks/use-countdown";
 import { useEventStartAlert } from "@/hooks/use-event-start-alert";
 import { EventCore } from "./event-core";
 import type {
+  EventTypeName,
   RaffleParticipantView,
   VotingOptionView,
 } from "@/lib/realtime/contracts";
@@ -232,7 +233,7 @@ function InstructionsFooter({
   participateDescription = "Escribe participo en el chat",
 }: {
   phase: "suggest" | "vote" | "participate";
-  /** Texto de la instrucción de sugerir (depende de la validación IGDB). */
+  /** Texto de la instrucción de sugerir. */
   suggestDescription?: string;
   /** Texto de la instrucción de participar (lleva la palabra del sorteo). */
   participateDescription?: string;
@@ -262,25 +263,17 @@ function InstructionsFooter({
   );
 }
 
-const VOTING_TITLE = <span className="text-violet-400">VOTACIÓN</span>;
 const VOTING_SUBTITLE = "Vota por tu opción favorita";
 const RAFFLE_TITLE = <span className="text-violet-400">SORTEO</span>;
 const RAFFLE_SUBTITLE = "Participa y gana";
 
-const SUGGEST_SUBTITLE_IGDB = "Escribe el nombre del juego en el chat";
-const SUGGEST_SUBTITLE_FREE = "Escribe tu sugerencia en el chat";
-
-/** ¿Subtítulo/instrucción del evento según la validación IGDB del evento? */
-function suggestInstruction(igdbValidation: boolean): string {
-  return igdbValidation ? SUGGEST_SUBTITLE_IGDB : SUGGEST_SUBTITLE_FREE;
-}
+const SUGGEST_SUBTITLE = "Escribe el nombre del juego en el chat";
 
 /**
- * Título del evento de sugerencias (editable en la config): se muestra en
- * mayúsculas con la última palabra en el color del tema, como el "¿QUÉ
- * JUGAMOS?" original.
+ * Título del evento (definido en la config): se muestra en mayúsculas con
+ * la última palabra en el color del tema, como el "¿QUÉ JUGAMOS?" original.
  */
-function suggestionsTitleNode(title: string): ReactNode {
+function eventTitleNode(title: string): ReactNode {
   const words = title.trim().toUpperCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return <span className="text-white">?</span>;
   const last = words[words.length - 1];
@@ -290,6 +283,20 @@ function suggestionsTitleNode(title: string): ReactNode {
       {rest && <span className="text-white">{rest} </span>}
       <span className="text-violet-400">{last}</span>
     </>
+  );
+}
+
+/**
+ * Título de cabecera de las fases de votación: el título de la encuesta en
+ * eventos VOTING y el título fijo del evento en SUGGESTIONS.
+ */
+function phaseTitleNode(event: {
+  type: EventTypeName;
+  votingTitle: string;
+  suggestionTitle: string;
+}): ReactNode {
+  return eventTitleNode(
+    event.type === "VOTING" ? event.votingTitle : event.suggestionTitle
   );
 }
 
@@ -388,8 +395,8 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         <>
           <HeaderBanner
             countdown={countdown}
-            title={suggestionsTitleNode(snapshot.event.suggestionTitle)}
-            subtitle={suggestInstruction(snapshot.event.igdbValidation)}
+            title={eventTitleNode(snapshot.event.suggestionTitle)}
+            subtitle={SUGGEST_SUBTITLE}
           />
           <Panel
             title="Sugerencias recientes"
@@ -424,18 +431,16 @@ export function OverlayClient({ channelId }: { channelId: string }) {
           </Panel>
           <InstructionsFooter
             phase="suggest"
-            suggestDescription={suggestInstruction(
-              snapshot.event.igdbValidation
-            )}
+            suggestDescription={SUGGEST_SUBTITLE}
           />
         </>
       )}
 
-      {status === "VOTING_ACTIVE" && snapshot && (
+      {status === "VOTING_ACTIVE" && snapshot && snapshot.event && (
         <>
           <HeaderBanner
             countdown={countdown}
-            title={VOTING_TITLE}
+            title={phaseTitleNode(snapshot.event)}
             subtitle={VOTING_SUBTITLE}
           />
           <Panel
@@ -460,14 +465,10 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         <>
           <HeaderBanner
             countdown={null}
-            title={
-              status === "SUGGESTIONS_FINISHED"
-                ? suggestionsTitleNode(snapshot.event.suggestionTitle)
-                : VOTING_TITLE
-            }
+            title={phaseTitleNode(snapshot.event)}
             subtitle={
               status === "SUGGESTIONS_FINISHED"
-                ? suggestInstruction(snapshot.event.igdbValidation)
+                ? SUGGEST_SUBTITLE
                 : VOTING_SUBTITLE
             }
           />
@@ -475,7 +476,7 @@ export function OverlayClient({ channelId }: { channelId: string }) {
             title={
               status === "SUGGESTIONS_FINISHED"
                 ? "Sugerencias cerradas"
-                : "Votación cerrada"
+                : "Encuesta cerrada"
             }
             count={
               status === "SUGGESTIONS_FINISHED"
@@ -488,23 +489,23 @@ export function OverlayClient({ channelId }: { channelId: string }) {
             <p className="px-1 py-2 text-lg font-extrabold text-white">
               {status === "SUGGESTIONS_FINISHED"
                 ? "¡Sugerencias cerradas!"
-                : "¡Votación cerrada!"}
+                : "¡Encuesta cerrada!"}
             </p>
           </Panel>
         </>
       )}
 
-      {status === "TIE" && snapshot && (
+      {status === "TIE" && snapshot && snapshot.event && (
         <>
           <HeaderBanner
             countdown={countdown}
-            title={VOTING_TITLE}
+            title={phaseTitleNode(snapshot.event)}
             subtitle={VOTING_SUBTITLE}
           />
           <section className="overlay-rise overflow-hidden rounded-2xl border border-amber-300/60 bg-[#0c0718]/92 shadow-[0_12px_40px_rgba(0,0,0,0.7)]">
             <div className="border-b border-amber-300/25 px-4 py-2.5">
               <p className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-300">
-                ¡Empate! Se extiende la votación
+                ¡Empate! Se extiende la encuesta
               </p>
             </div>
             <div className="flex flex-col gap-2 p-3">
@@ -534,11 +535,11 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         </>
       )}
 
-      {status === "COMPLETED" && snapshot?.winner && (
+      {status === "COMPLETED" && snapshot?.winner && snapshot.event && (
         <>
           <HeaderBanner
             countdown={null}
-            title={VOTING_TITLE}
+            title={phaseTitleNode(snapshot.event)}
             subtitle={VOTING_SUBTITLE}
           />
           <section className="overlay-leader-glow overlay-rise rounded-2xl border border-amber-300/70 bg-gradient-to-b from-[#241843] to-[#0c0718] px-6 py-6 text-center">

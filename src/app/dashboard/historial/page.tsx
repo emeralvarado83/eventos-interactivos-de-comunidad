@@ -61,7 +61,7 @@ export default async function HistorialPage() {
               Todavía no hay eventos
             </p>
             <p className="max-w-md text-sm text-zinc-500">
-              Cuando crees tu primer evento de sugerencias, votación o sorteo,
+              Cuando crees tu primer evento de sugerencias, encuesta o sorteo,
               aparecerá aquí.
             </p>
           </div>

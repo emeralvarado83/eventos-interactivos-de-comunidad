@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getSession } from "@/lib/auth/session";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -24,11 +25,19 @@ export default async function Home({
         className="absolute inset-0 bg-[url('/fondo-login.png')] bg-cover bg-center"
       />
       <main className="relative flex w-full max-w-xl flex-col items-center gap-8 text-center">
+        <Image
+          src="/logo.png"
+          alt="Eventos Interactivos de Comunidad"
+          width={112}
+          height={112}
+          priority
+          className="h-28 w-28 rounded-full shadow-[0_8px_32px_rgba(139,92,246,0.45)]"
+        />
         <h1 className="text-4xl font-bold tracking-tight">
           Eventos Interactivos de Comunidad
         </h1>
         <p className="text-lg leading-8 text-zinc-400">
-          Crea eventos de sugerencias, votaciones, sorteos, encuestas y más.
+          Crea eventos de sugerencias, encuestas, sorteos y más.
           ¡Tu chat decide!
         </p>
 

@@ -86,6 +86,8 @@ model Event {
   status                EventStatus  @default(DRAFT)
   suggestionDurationSec Int          @default(60)
   votingDurationSec     Int          @default(60)
+  // Título visible de la encuesta (type = VOTING), editable por el streamer.
+  votingTitle           String       @default("Encuesta")
   // Tope de opciones importadas en VOTING con origen FROM_SUGGESTIONS.
   maxOptions            Int          @default(10)
   // Origen de las opciones de votación (type = VOTING).
@@ -95,11 +97,12 @@ model Event {
   maxParticipants         Int?
   // Palabra exacta que inscribe al sorteo desde el chat (case-insensitive).
   raffleCommand           String      @default("participo")
-  // Config de sugerencias (type = SUGGESTIONS). igdbValidation = false acepta
-  // texto libre (eventos que no son de videojuegos).
+  // Config de sugerencias (type = SUGGESTIONS). Siempre true: las sugerencias
+  // son videojuegos validados contra IGDB (el modo de texto libre se eliminó).
   igdbValidation       Boolean @default(true)
-  suggestionMaxLength  Int     @default(60)
-  // Título visible del evento (dashboard y overlay).
+  // Longitud máxima fija del texto de una sugerencia (no configurable).
+  suggestionMaxLength  Int     @default(100)
+  // Título fijo del evento (dashboard y overlay).
   suggestionTitle      String  @default("¿Qué jugamos?")
   createdAt             DateTime    @default(now())
   startedAt             DateTime?

@@ -62,15 +62,12 @@ export type EventConfigPayload =
   | {
       type: "SUGGESTIONS";
       suggestionDurationSec: number;
-      /** Título visible del evento (dashboard y overlay). */
-      suggestionTitle: string;
-      /** false = texto libre, sin validar contra IGDB. */
-      igdbValidation: boolean;
-      suggestionMaxLength: number;
     }
   | {
       type: "VOTING";
       votingDurationSec: number;
+      /** Título visible de la encuesta (dashboard y overlay). */
+      votingTitle: string;
       /** Tope de opciones importadas cuando optionSource = FROM_SUGGESTIONS. */
       maxOptions: number;
       optionSource: OptionSourceName;
@@ -122,6 +119,8 @@ export interface EventStateSnapshot {
     status: EventStatusName;
     suggestionDurationSec: number;
     votingDurationSec: number;
+    /** Título visible de la encuesta (type = VOTING), editable. */
+    votingTitle: string;
     maxOptions: number;
     /** Origen de las opciones (type = VOTING). */
     optionSource: OptionSourceName;
@@ -133,10 +132,11 @@ export interface EventStateSnapshot {
     maxParticipants: number | null;
     /** Palabra que inscribe al sorteo desde el chat (type = RAFFLE). */
     raffleCommand: string;
-    /** Config de sugerencias (type = SUGGESTIONS). */
+    /** Config de sugerencias (type = SUGGESTIONS). Siempre true: las
+     * sugerencias son videojuegos validados contra IGDB. */
     igdbValidation: boolean;
     suggestionMaxLength: number;
-    /** Título visible del evento de sugerencias (dashboard y overlay). */
+    /** Título fijo del evento de sugerencias (dashboard y overlay). */
     suggestionTitle: string;
     /** ISO 8601; null mientras el evento no ha terminado. */
     endedAt: string | null;

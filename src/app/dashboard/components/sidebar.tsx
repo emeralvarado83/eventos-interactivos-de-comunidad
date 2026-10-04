@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/branding";
 import {
-  BoltIcon,
   GearIcon,
   HistoryIcon,
   HomeIcon,
@@ -24,9 +24,13 @@ export function Sidebar() {
   return (
     <aside className="flex w-70 shrink-0 flex-col border-r border-violet-500/15 bg-[#0c0718]">
       <div className="flex items-center gap-3 px-5 pt-6 pb-8">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-400 to-violet-700 shadow-[0_4px_16px_rgba(var(--theme-glow-500),0.4)]">
-          <BoltIcon className="h-5 w-5 text-white" />
-        </span>
+        <Image
+          src="/logo.png"
+          alt=""
+          width={40}
+          height={40}
+          className="h-10 w-10 rounded-xl shadow-[0_4px_16px_rgba(var(--theme-glow-500),0.4)]"
+        />
         <div className="leading-tight">
           <p className="font-display text-lg text-white">{BRAND_NAME}</p>
           <p className="text-[11px] font-medium text-violet-200/60">

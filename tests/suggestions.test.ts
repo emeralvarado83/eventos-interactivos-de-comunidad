@@ -42,9 +42,9 @@ describe("normalizeGameName", () => {
 });
 
 describe("isValidSuggestionText", () => {
-  it("acepta textos entre 2 y 60 caracteres tras trim (default)", () => {
+  it("acepta textos entre 2 y 100 caracteres tras trim (default)", () => {
     expect(isValidSuggestionText("ab")).toBe(true);
-    expect(isValidSuggestionText("a".repeat(60))).toBe(true);
+    expect(isValidSuggestionText("a".repeat(100))).toBe(true);
     expect(isValidSuggestionText("  Celeste  ")).toBe(true);
   });
 
@@ -53,7 +53,7 @@ describe("isValidSuggestionText", () => {
     expect(isValidSuggestionText("   ")).toBe(false);
     expect(isValidSuggestionText("a")).toBe(false);
     expect(isValidSuggestionText(" a ")).toBe(false);
-    expect(isValidSuggestionText("a".repeat(61))).toBe(false);
+    expect(isValidSuggestionText("a".repeat(101))).toBe(false);
   });
 
   it("respeta una longitud máxima personalizada", () => {

@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Eventos interactivos para Twitch",
   description:
-    "Sugerencias y votaciones del chat con overlay para OBS, en tiempo real.",
+    "Sugerencias y encuestas del chat con overlay para OBS, en tiempo real.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

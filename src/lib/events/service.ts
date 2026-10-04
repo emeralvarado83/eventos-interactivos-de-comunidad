@@ -4,15 +4,15 @@
 
 import { db } from "@/lib/db";
 import { BusinessError } from "@/lib/errors";
+import { EVENT_TYPE_META, FROM_SUGGESTIONS_VOTING_TITLE } from "@/lib/branding";
 import { assertTransition } from "@/lib/events/state-machine";
 import type { EventConfigInput } from "@/lib/events/config";
 import {
   MAX_COMMAND_LENGTH,
-  MAX_SUGGESTION_MAX_LENGTH,
-  MAX_SUGGESTION_TITLE_LENGTH,
+  MAX_EVENT_TITLE_LENGTH,
   MIN_COMMAND_LENGTH,
-  MIN_SUGGESTION_MAX_LENGTH,
-  MIN_SUGGESTION_TITLE_LENGTH,
+  MIN_EVENT_TITLE_LENGTH,
+  SUGGESTION_TEXT_MAX_LENGTH,
 } from "@/lib/events/config";
 import {
   SOCKET_EVENTS,
@@ -63,24 +63,6 @@ function validMaxParticipants(value: number): boolean {
   );
 }
 
-/** Título del evento de sugerencias: texto recortado de 2 a 40 caracteres. */
-function validSuggestionTitle(value: string): boolean {
-  const trimmed = value.trim();
-  return (
-    trimmed.length >= MIN_SUGGESTION_TITLE_LENGTH &&
-    trimmed.length <= MAX_SUGGESTION_TITLE_LENGTH
-  );
-}
-
-/** Longitud máxima permitida para una sugerencia. */
-function validSuggestionMaxLength(value: number): boolean {
-  return (
-    Number.isInteger(value) &&
-    value >= MIN_SUGGESTION_MAX_LENGTH &&
-    value <= MAX_SUGGESTION_MAX_LENGTH
-  );
-}
-
 /** Palabra de inscripción al sorteo: una sola palabra de 2 a 20 caracteres. */
 function validRaffleCommand(value: string): boolean {
   const trimmed = value.trim();
@@ -94,40 +76,39 @@ function validRaffleCommand(value: string): boolean {
 /** Config de un evento de Sugerencias (SUGGESTIONS), completa y válida. */
 function assertValidSuggestionsConfig(config: {
   suggestionDurationSec: number;
-  suggestionTitle: string;
-  igdbValidation: boolean;
-  suggestionMaxLength: number;
 }): void {
   if (!validDuration(config.suggestionDurationSec)) {
     throw new BusinessError(
       `La duración debe ser un entero entre ${MIN_DURATION_SEC} y ${MAX_DURATION_SEC} segundos`
     );
   }
-  if (!validSuggestionTitle(config.suggestionTitle)) {
-    throw new BusinessError(
-      `El título debe tener entre ${MIN_SUGGESTION_TITLE_LENGTH} y ${MAX_SUGGESTION_TITLE_LENGTH} caracteres`
-    );
-  }
-  if (typeof config.igdbValidation !== "boolean") {
-    throw new BusinessError("igdbValidation debe ser un booleano");
-  }
-  if (!validSuggestionMaxLength(config.suggestionMaxLength)) {
-    throw new BusinessError(
-      `La longitud máxima de sugerencia debe ser un entero entre ${MIN_SUGGESTION_MAX_LENGTH} y ${MAX_SUGGESTION_MAX_LENGTH}`
-    );
-  }
 }
 
-/** Config de un evento de Votación (VOTING), completa y válida. */
-function assertValidVotingConfig(config: {
-  votingDurationSec: number;
-  maxOptions: number;
-  optionSource: OptionSourceName;
-  options?: string[];
-}): void {
+/** Config de un evento de Encuesta (VOTING), completa y válida. */
+function assertValidVotingConfig(
+  config: {
+    votingDurationSec: number;
+    votingTitle: string;
+    maxOptions: number;
+    optionSource: OptionSourceName;
+    options?: string[];
+  },
+  // Un borrador recién creado aún no tiene opciones: se definen en el panel
+  // de configuración y startVoting exige el mínimo antes de iniciar.
+  opts?: { allowEmptyManualOptions?: boolean }
+): void {
   if (!validDuration(config.votingDurationSec)) {
     throw new BusinessError(
       `La duración debe ser un entero entre ${MIN_DURATION_SEC} y ${MAX_DURATION_SEC} segundos`
+    );
+  }
+  const title = config.votingTitle.trim();
+  if (
+    title.length < MIN_EVENT_TITLE_LENGTH ||
+    title.length > MAX_EVENT_TITLE_LENGTH
+  ) {
+    throw new BusinessError(
+      `El título debe tener entre ${MIN_EVENT_TITLE_LENGTH} y ${MAX_EVENT_TITLE_LENGTH} caracteres`
     );
   }
   if (!validMaxOptions(config.maxOptions)) {
@@ -135,10 +116,13 @@ function assertValidVotingConfig(config: {
       `El máximo de opciones debe ser un entero entre ${MIN_MAX_OPTIONS} y ${MAX_MAX_OPTIONS}`
     );
   }
-  if (config.optionSource === "MANUAL") {
+  if (
+    config.optionSource === "MANUAL" &&
+    !opts?.allowEmptyManualOptions
+  ) {
     if (!config.options || config.options.length < 2) {
       throw new BusinessError(
-        "Una votación con opciones manuales necesita al menos 2 opciones"
+        "Una encuesta con opciones manuales necesita al menos 2 opciones"
       );
     }
   }
@@ -170,14 +154,46 @@ function assertValidRaffleConfig(config: {
   }
 }
 
-/** Recalcula el snapshot del canal y lo emite junto al evento específico opcional. */
+/**
+ * Recalcula el snapshot del canal y lo emite junto al evento específico
+ * opcional. Las emisiones del snapshot están coalescidas por canal: como
+ * máximo una cada SNAPSHOT_EMIT_INTERVAL_MS. En ráfagas (cientos de votos o
+ * inscripciones por segundo) las llamadas intermedias se agrupan en una sola
+ * emisión de arrastre que siempre refleja el estado más reciente; los eventos
+ * específicos (payloads pequeños, sin consulta a BD) salen de inmediato.
+ */
+const SNAPSHOT_EMIT_INTERVAL_MS = 250;
+const lastSnapshotEmitAt = new Map<string, number>();
+const pendingSnapshotEmit = new Map<string, NodeJS.Timeout>();
+
+async function rebuildAndEmitSnapshot(channelId: string): Promise<void> {
+  lastSnapshotEmitAt.set(channelId, Date.now());
+  const snapshot = await getCurrentSnapshot(channelId);
+  emitState(channelId, snapshot);
+}
+
 export async function publishEventState(
   channelId: string,
   specificEvent?: { event: string; payload: unknown }
 ): Promise<void> {
   try {
-    const snapshot = await getCurrentSnapshot(channelId);
-    emitState(channelId, snapshot);
+    if (pendingSnapshotEmit.has(channelId)) {
+      // Ya hay una emisión de arrastre programada que recogerá este cambio.
+    } else {
+      const elapsed =
+        Date.now() - (lastSnapshotEmitAt.get(channelId) ?? 0);
+      if (elapsed >= SNAPSHOT_EMIT_INTERVAL_MS) {
+        await rebuildAndEmitSnapshot(channelId);
+      } else {
+        const timer = setTimeout(() => {
+          pendingSnapshotEmit.delete(channelId);
+          void rebuildAndEmitSnapshot(channelId).catch((err) =>
+            console.error("Error al emitir el estado del canal:", err)
+          );
+        }, SNAPSHOT_EMIT_INTERVAL_MS - elapsed);
+        pendingSnapshotEmit.set(channelId, timer);
+      }
+    }
     if (specificEvent) {
       emitToChannel(channelId, specificEvent.event, specificEvent.payload);
     }
@@ -192,29 +208,34 @@ export async function createEvent(
     type?: EventTypeName;
     suggestionDurationSec?: number;
     votingDurationSec?: number;
+    votingTitle?: string;
     maxOptions?: number;
     optionSource?: OptionSourceName;
     options?: string[];
     registrationDurationSec?: number;
     maxParticipants?: number | null;
     raffleCommand?: string;
-    suggestionTitle?: string;
-    igdbValidation?: boolean;
-    suggestionMaxLength?: number;
   } = {}
 ) {
   const type = options.type ?? "SUGGESTIONS";
   const suggestionDurationSec = options.suggestionDurationSec ?? 60;
   const votingDurationSec = options.votingDurationSec ?? 60;
-  const maxOptions = options.maxOptions ?? DEFAULT_MAX_OPTIONS;
   const optionSource = options.optionSource ?? "MANUAL";
+  // Con origen FROM_SUGGESTIONS el título es fijo; en MANUAL es editable.
+  const votingTitle =
+    optionSource === "FROM_SUGGESTIONS"
+      ? FROM_SUGGESTIONS_VOTING_TITLE
+      : options.votingTitle?.trim() || EVENT_TYPE_META.VOTING.title;
+  const maxOptions = options.maxOptions ?? DEFAULT_MAX_OPTIONS;
   const registrationDurationSec =
     options.registrationDurationSec ?? DEFAULT_REGISTRATION_SEC;
   const maxParticipants = options.maxParticipants ?? null;
   const raffleCommand = options.raffleCommand ?? "participo";
-  const suggestionTitle = options.suggestionTitle ?? "¿Qué jugamos?";
-  const igdbValidation = options.igdbValidation ?? true;
-  const suggestionMaxLength = options.suggestionMaxLength ?? 60;
+  // Las sugerencias siempre son videojuegos validados contra IGDB: título
+  // fijo y longitud máxima fija (ya no existe el modo de texto libre).
+  const igdbValidation = true;
+  const suggestionTitle = EVENT_TYPE_META.SUGGESTIONS.title;
+  const suggestionMaxLength = SUGGESTION_TEXT_MAX_LENGTH;
 
   if (type === "RAFFLE") {
     assertValidRaffleConfig({
@@ -225,16 +246,14 @@ export async function createEvent(
   } else if (type === "VOTING") {
     assertValidVotingConfig({
       votingDurationSec,
+      votingTitle,
       maxOptions,
       optionSource,
       options: options.options,
-    });
+    }, { allowEmptyManualOptions: true });
   } else {
     assertValidSuggestionsConfig({
       suggestionDurationSec,
-      suggestionTitle,
-      igdbValidation,
-      suggestionMaxLength,
     });
   }
 
@@ -251,6 +270,7 @@ export async function createEvent(
       type,
       suggestionDurationSec,
       votingDurationSec,
+      votingTitle,
       maxOptions,
       optionSource,
       registrationDurationSec,
@@ -322,15 +342,22 @@ export async function updateEventConfig(
   } else if (type === "VOTING") {
     if (
       config.votingDurationSec === undefined ||
+      config.votingTitle === undefined ||
       config.maxOptions === undefined ||
       config.optionSource === undefined
     ) {
       throw new BusinessError(
-        "El body debe incluir votingDurationSec, maxOptions y optionSource"
+        "El body debe incluir votingDurationSec, votingTitle, maxOptions y optionSource"
       );
     }
+    // Con origen FROM_SUGGESTIONS el título es fijo; en MANUAL es editable.
+    const fixedVotingTitle =
+      config.optionSource === "FROM_SUGGESTIONS"
+        ? FROM_SUGGESTIONS_VOTING_TITLE
+        : config.votingTitle;
     assertValidVotingConfig({
       votingDurationSec: config.votingDurationSec,
+      votingTitle: fixedVotingTitle,
       maxOptions: config.maxOptions,
       optionSource: config.optionSource,
       options: config.options,
@@ -341,6 +368,7 @@ export async function updateEventConfig(
         data: {
           type,
           votingDurationSec: config.votingDurationSec,
+          votingTitle: fixedVotingTitle,
           maxOptions: config.maxOptions,
           optionSource: config.optionSource,
         },
@@ -360,30 +388,22 @@ export async function updateEventConfig(
         : []),
     ]);
   } else {
-    if (
-      config.suggestionDurationSec === undefined ||
-      config.suggestionTitle === undefined ||
-      config.igdbValidation === undefined ||
-      config.suggestionMaxLength === undefined
-    ) {
-      throw new BusinessError(
-        "El body debe incluir suggestionDurationSec, suggestionTitle, igdbValidation y suggestionMaxLength"
-      );
+    if (config.suggestionDurationSec === undefined) {
+      throw new BusinessError("El body debe incluir suggestionDurationSec");
     }
     assertValidSuggestionsConfig({
       suggestionDurationSec: config.suggestionDurationSec,
-      suggestionTitle: config.suggestionTitle,
-      igdbValidation: config.igdbValidation,
-      suggestionMaxLength: config.suggestionMaxLength,
     });
     await db.event.update({
       where: { id: event.id },
       data: {
         type,
         suggestionDurationSec: config.suggestionDurationSec,
-        suggestionTitle: config.suggestionTitle,
-        igdbValidation: config.igdbValidation,
-        suggestionMaxLength: config.suggestionMaxLength,
+        // Título fijo, validación IGDB siempre activa y longitud máxima
+        // fija: las sugerencias son videojuegos.
+        suggestionTitle: EVENT_TYPE_META.SUGGESTIONS.title,
+        igdbValidation: true,
+        suggestionMaxLength: SUGGESTION_TEXT_MAX_LENGTH,
       },
     });
   }
@@ -532,6 +552,7 @@ export async function getCurrentSnapshot(
       status: event.status,
       suggestionDurationSec: event.suggestionDurationSec,
       votingDurationSec: event.votingDurationSec,
+      votingTitle: event.votingTitle,
       maxOptions: event.maxOptions,
       optionSource: event.optionSource,
       manualOptions: event.eventOptions.map((o) => o.label),
@@ -703,7 +724,7 @@ export async function completeSuggestions(eventId: string): Promise<void> {
 export async function startVoting(eventId: string): Promise<void> {
   const { event, round } = await getEventWithCurrentRound(eventId);
   if (event.type !== "VOTING") {
-    throw new BusinessError("Este evento no es de votación");
+    throw new BusinessError("Este evento no es una encuesta");
   }
   assertTransition(event.status, "VOTING_ACTIVE");
 
@@ -715,7 +736,7 @@ export async function startVoting(eventId: string): Promise<void> {
     });
     if (manualOptions.length < 2) {
       throw new BusinessError(
-        "No se puede iniciar la votación con menos de 2 opciones"
+        "No se puede iniciar la encuesta con menos de 2 opciones"
       );
     }
     labels = manualOptions.map((o) => o.label);
@@ -872,7 +893,7 @@ export async function finishVoting(
 export async function completeVoting(eventId: string): Promise<void> {
   const { event, round } = await getEventWithCurrentRound(eventId);
   if (event.type !== "VOTING") {
-    throw new BusinessError("Este evento no es de votación");
+    throw new BusinessError("Este evento no es una encuesta");
   }
   assertTransition(event.status, "COMPLETED");
 
@@ -993,7 +1014,7 @@ export async function newRound(eventId: string): Promise<void> {
 export async function newVotingRound(eventId: string): Promise<void> {
   const { event, round } = await getEventWithCurrentRound(eventId);
   if (event.type !== "VOTING") {
-    throw new BusinessError("Este evento no es de votación");
+    throw new BusinessError("Este evento no es una encuesta");
   }
   assertTransition(event.status, "VOTING_ACTIVE");
 

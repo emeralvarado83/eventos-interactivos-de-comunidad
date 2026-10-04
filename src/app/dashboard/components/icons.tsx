@@ -100,14 +100,6 @@ export function HashIcon({ className }: IconProps) {
   );
 }
 
-export function TrophyIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
-      <path d="M6 2h12v2h4v3a5 5 0 0 1-5 5h-.4A6 6 0 0 1 13 15.9V19h4v2H7v-2h4v-3.1A6 6 0 0 1 7.4 12H7a5 5 0 0 1-5-5V4h4V2zm-2 4v1a3 3 0 0 0 3 3V6H4zm16 0h-3v4a3 3 0 0 0 3-3V6z" />
-    </svg>
-  );
-}
-
 export function CrownIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>

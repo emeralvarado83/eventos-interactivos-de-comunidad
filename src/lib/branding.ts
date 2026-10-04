@@ -28,9 +28,9 @@ export const EVENT_TYPE_META: Record<
     title: "¿Qué jugamos?",
   },
   VOTING: {
-    label: "Votación",
-    startLabel: "Iniciar votación",
-    title: "Votación",
+    label: "Encuesta",
+    startLabel: "Iniciar encuesta",
+    title: "¿Qué hacemos?",
   },
   RAFFLE: {
     label: "Sorteo",
@@ -38,3 +38,6 @@ export const EVENT_TYPE_META: Record<
     title: "Sorteo",
   },
 };
+
+/** Título por defecto de la encuesta cuando las opciones vienen de sugerencias. */
+export const FROM_SUGGESTIONS_VOTING_TITLE = "¿Cuál jugamos?";

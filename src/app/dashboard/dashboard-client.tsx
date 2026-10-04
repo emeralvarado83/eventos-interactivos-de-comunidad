@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   type EventConfigPayload,
   type EventStateSnapshot,
+  type EventTypeName,
 } from "@/lib/realtime/contracts";
 import { useChannelSocket } from "@/hooks/use-channel-socket";
 import { formatCountdown, useCountdown } from "@/hooks/use-countdown";
@@ -82,15 +83,12 @@ export function DashboardClient({
     }
   }
 
-  function createEvent() {
+  function createEvent(type: EventTypeName) {
     void runAction("create", () =>
       fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "SUGGESTIONS",
-          suggestionDurationSec: 60,
-        }),
+        body: JSON.stringify({ type }),
       })
     );
   }
@@ -205,6 +203,7 @@ export function DashboardClient({
                 snapshot?.event?.suggestionDurationSec ?? 60
               }
               votingDurationSec={snapshot?.event?.votingDurationSec ?? 60}
+              votingTitle={snapshot?.event?.votingTitle ?? "¿Qué hacemos?"}
               maxOptions={snapshot?.event?.maxOptions ?? 10}
               optionSource={snapshot?.event?.optionSource ?? "MANUAL"}
               manualOptions={snapshot?.event?.manualOptions ?? []}
@@ -212,13 +211,6 @@ export function DashboardClient({
                 snapshot?.event?.registrationDurationSec ?? 300
               }
               maxParticipants={snapshot?.event?.maxParticipants ?? null}
-              suggestionTitle={
-                snapshot?.event?.suggestionTitle ?? "¿Qué jugamos?"
-              }
-              igdbValidation={snapshot?.event?.igdbValidation ?? true}
-              suggestionMaxLength={
-                snapshot?.event?.suggestionMaxLength ?? 60
-              }
               raffleCommand={snapshot?.event?.raffleCommand ?? "participo"}
               editable={status === "DRAFT"}
               pending={pending === "config"}
@@ -285,7 +277,9 @@ function EventCard({
         <h2 className="font-display text-3xl text-white">
           {event.type === "SUGGESTIONS"
             ? event.suggestionTitle
-            : EVENT_TYPE_META[event.type].title}
+            : event.type === "VOTING"
+              ? event.votingTitle
+              : EVENT_TYPE_META[event.type].title}
         </h2>
         <StatusPill status={status} />
         {showCountdown && (
@@ -353,13 +347,13 @@ function EventCard({
 
       {status === "VOTING_FINISHED" && (
         <p className="mt-3 text-sm text-zinc-400">
-          Votación cerrada. Puedes finalizar el evento.
+          Encuesta cerrada. Puedes finalizar el evento.
         </p>
       )}
 
       {status === "TIE" && (
         <p className="mt-3 text-sm font-semibold text-amber-300">
-          ¡Empate en cabeza! Puedes extender la votación un minuto para
+          ¡Empate en cabeza! Puedes extender la encuesta un minuto para
           desempatar.
         </p>
       )}
@@ -376,7 +370,7 @@ function EventCard({
         event.type === "VOTING" &&
         !snapshot.winner && (
           <p className="mt-3 text-sm text-zinc-400">
-            La votación terminó sin participación. Puedes iniciar una nueva
+            La encuesta terminó sin participación. Puedes iniciar una nueva
             ronda con las mismas opciones o finalizar el evento.
           </p>
         )}
@@ -435,7 +429,7 @@ function EventCard({
               <Stat
                 icon={<GamepadIcon className="h-5 w-5 text-violet-300" />}
                 value={snapshot.votingOptions.length}
-                label="Opciones en votación"
+                label="Opciones en la encuesta"
               />
               <Stat
                 icon={<UsersIcon className="h-5 w-5 text-violet-300" />}
@@ -577,7 +571,7 @@ function EventCard({
               onClick={() => onAction("finish-vote", "finish-voting")}
               className={PRIMARY_BTN}
             >
-              {pending === "finish-vote" ? "Cerrando…" : "Cerrar votación"}
+              {pending === "finish-vote" ? "Cerrando…" : "Cerrar encuesta"}
             </button>
             <ViewOverlayButton overlayUrl={overlayUrl} />
             <button
@@ -761,7 +755,7 @@ function GamesCard({
         {manualPreview &&
           (event.manualOptions.length === 0 ? (
             <p className="px-1 py-3 text-sm text-zinc-500">
-              Añade las opciones de la votación en el panel de configuración.
+              Añade las opciones de la encuesta en el panel de configuración.
             </p>
           ) : (
             event.manualOptions.map((label, i) => (

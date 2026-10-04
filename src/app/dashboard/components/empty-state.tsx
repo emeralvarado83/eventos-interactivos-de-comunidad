@@ -1,11 +1,21 @@
 "use client";
 
-import { PlusIcon } from "./icons";
+import {
+  EVENT_TYPES,
+  type EventTypeName,
+} from "@/lib/realtime/contracts";
+import { EVENT_TYPE_META } from "@/lib/branding";
 
 interface EmptyStateProps {
   pending: boolean;
-  onCreateEvent: () => void;
+  onCreateEvent: (type: EventTypeName) => void;
 }
+
+const TYPE_HINTS: Record<EventTypeName, string> = {
+  SUGGESTIONS: "El chat propone juegos",
+  VOTING: "El chat vota entre opciones tuyas o importadas de sugerencias.",
+  RAFFLE: "El chat participa con un comando establecido por el streamer",
+};
 
 export function EmptyState({ pending, onCreateEvent }: EmptyStateProps) {
   return (
@@ -15,19 +25,28 @@ export function EmptyState({ pending, onCreateEvent }: EmptyStateProps) {
           No hay ningún evento activo
         </h2>
         <p className="mt-2 text-sm text-zinc-400">
-          Crea un evento para interactuar con tu comunidad.
+          Elige el tipo de evento para interactuar con tu comunidad.
         </p>
       </div>
 
-      <button
-        type="button"
-        disabled={pending}
-        onClick={onCreateEvent}
-        className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-[0_6px_24px_rgba(var(--theme-glow-500),0.35)] transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <PlusIcon className="h-4 w-4" />
-        {pending ? "Creando…" : "Crear nuevo evento"}
-      </button>
+      <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+        {EVENT_TYPES.map((t) => (
+          <button
+            key={t}
+            type="button"
+            disabled={pending}
+            onClick={() => onCreateEvent(t)}
+            className="flex flex-col gap-1.5 rounded-xl border border-violet-500/25 bg-[#080512] px-4 py-4 text-left transition-colors hover:border-violet-400/60 hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="text-sm font-bold text-white">
+              {EVENT_TYPE_META[t].label}
+            </span>
+            <span className="text-[11px] font-medium text-zinc-500">
+              {TYPE_HINTS[t]}
+            </span>
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

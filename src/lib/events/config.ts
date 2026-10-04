@@ -14,6 +14,8 @@ export interface EventConfigInput {
   type?: EventTypeName;
   suggestionDurationSec?: number;
   votingDurationSec?: number;
+  /** Título visible de la encuesta (type = VOTING). */
+  votingTitle?: string;
   maxOptions?: number;
   optionSource?: OptionSourceName;
   /** Opciones manuales de un evento VOTING (optionSource = MANUAL). */
@@ -23,17 +25,12 @@ export interface EventConfigInput {
   maxParticipants?: number | null;
   /** Palabra exacta que inscribe al sorteo (una palabra, 2-20 caracteres). */
   raffleCommand?: string;
-  /** false = sugerencias de texto libre, sin validar contra IGDB. */
-  igdbValidation?: boolean;
-  suggestionMaxLength?: number;
-  /** Título visible del evento de sugerencias. */
-  suggestionTitle?: string;
 }
 
-export const MIN_SUGGESTION_TITLE_LENGTH = 2;
-export const MAX_SUGGESTION_TITLE_LENGTH = 40;
-export const MIN_SUGGESTION_MAX_LENGTH = 10;
-export const MAX_SUGGESTION_MAX_LENGTH = 140;
+/** Longitud máxima fija del texto de una sugerencia (no configurable). */
+export const SUGGESTION_TEXT_MAX_LENGTH = 100;
+export const MIN_EVENT_TITLE_LENGTH = 2;
+export const MAX_EVENT_TITLE_LENGTH = 40;
 export const MIN_COMMAND_LENGTH = 2;
 export const MAX_COMMAND_LENGTH = 20;
 
@@ -63,15 +60,13 @@ export function parseEventConfig(body: unknown): EventConfigInput {
     type,
     suggestionDurationSec,
     votingDurationSec,
+    votingTitle,
     maxOptions,
     optionSource,
     options,
     registrationDurationSec,
     maxParticipants,
     raffleCommand,
-    igdbValidation,
-    suggestionMaxLength,
-    suggestionTitle,
   } = body as Record<string, unknown>;
 
   if (
@@ -149,6 +144,22 @@ export function parseEventConfig(body: unknown): EventConfigInput {
     );
   }
 
+  let cleanVotingTitle: string | undefined;
+  if (votingTitle !== undefined) {
+    if (typeof votingTitle !== "string") {
+      throw new BusinessError("votingTitle debe ser un texto");
+    }
+    cleanVotingTitle = votingTitle.trim();
+    if (
+      cleanVotingTitle.length < MIN_EVENT_TITLE_LENGTH ||
+      cleanVotingTitle.length > MAX_EVENT_TITLE_LENGTH
+    ) {
+      throw new BusinessError(
+        `votingTitle debe tener entre ${MIN_EVENT_TITLE_LENGTH} y ${MAX_EVENT_TITLE_LENGTH} caracteres`
+      );
+    }
+  }
+
   let cleanCommand: string | undefined;
   if (raffleCommand !== undefined) {
     if (typeof raffleCommand !== "string") {
@@ -166,42 +177,11 @@ export function parseEventConfig(body: unknown): EventConfigInput {
     }
   }
 
-  if (igdbValidation !== undefined && typeof igdbValidation !== "boolean") {
-    throw new BusinessError("igdbValidation debe ser un booleano");
-  }
-
-  if (
-    suggestionMaxLength !== undefined &&
-    (typeof suggestionMaxLength !== "number" ||
-      !Number.isInteger(suggestionMaxLength) ||
-      suggestionMaxLength < MIN_SUGGESTION_MAX_LENGTH ||
-      suggestionMaxLength > MAX_SUGGESTION_MAX_LENGTH)
-  ) {
-    throw new BusinessError(
-      `suggestionMaxLength debe ser un entero entre ${MIN_SUGGESTION_MAX_LENGTH} y ${MAX_SUGGESTION_MAX_LENGTH}`
-    );
-  }
-
-  let cleanTitle: string | undefined;
-  if (suggestionTitle !== undefined) {
-    if (typeof suggestionTitle !== "string") {
-      throw new BusinessError("suggestionTitle debe ser un texto");
-    }
-    cleanTitle = suggestionTitle.trim();
-    if (
-      cleanTitle.length < MIN_SUGGESTION_TITLE_LENGTH ||
-      cleanTitle.length > MAX_SUGGESTION_TITLE_LENGTH
-    ) {
-      throw new BusinessError(
-        `suggestionTitle debe tener entre ${MIN_SUGGESTION_TITLE_LENGTH} y ${MAX_SUGGESTION_TITLE_LENGTH} caracteres`
-      );
-    }
-  }
-
   return {
     type: type as EventTypeName | undefined,
     suggestionDurationSec: suggestionDurationSec as number | undefined,
     votingDurationSec: votingDurationSec as number | undefined,
+    votingTitle: cleanVotingTitle,
     maxOptions: maxOptions as number | undefined,
     optionSource: optionSource as OptionSourceName | undefined,
     options:
@@ -214,8 +194,5 @@ export function parseEventConfig(body: unknown): EventConfigInput {
         ? undefined
         : (maxParticipants as number | null),
     raffleCommand: cleanCommand,
-    igdbValidation: igdbValidation as boolean | undefined,
-    suggestionMaxLength: suggestionMaxLength as number | undefined,
-    suggestionTitle: cleanTitle,
   };
 }
