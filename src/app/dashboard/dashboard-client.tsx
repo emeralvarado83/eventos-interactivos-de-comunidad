@@ -47,7 +47,7 @@ export function DashboardClient({
   overlayUrl,
   avatarUrl,
 }: DashboardClientProps) {
-  const { snapshot, connected, setSnapshot } = useChannelSocket({
+  const { snapshot, connected, setSnapshot, liveStatus } = useChannelSocket({
     channelId,
     fallbackUrl: "/api/events/current",
   });
@@ -146,6 +146,7 @@ export function DashboardClient({
           avatarUrl={avatarUrl}
           copied={copied}
           onCopyOverlayUrl={copyOverlayUrl}
+          liveStatus={liveStatus}
         />
 
         <main className="flex flex-1 items-start gap-6 p-6">

@@ -66,3 +66,12 @@ export async function isChannelLive(twitchId: string): Promise<boolean> {
   liveCache.set(twitchId, { live, expiresAt: Date.now() + LIVE_CACHE_TTL_MS });
   return live;
 }
+
+/**
+ * Escribe el estado del directo en la caché sin llamar a Helix. Lo usa el
+ * listener de EventSub (stream.online/stream.offline) para que /api/twitch/live
+ * refleje el cambio al instante.
+ */
+export function setCachedLiveStatus(twitchId: string, live: boolean): void {
+  liveCache.set(twitchId, { live, expiresAt: Date.now() + LIVE_CACHE_TTL_MS });
+}

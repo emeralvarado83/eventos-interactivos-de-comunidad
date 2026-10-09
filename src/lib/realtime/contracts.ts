@@ -174,6 +174,8 @@ export const SOCKET_EVENTS = {
   JOIN: "channel:join",
   /** Servidor → cliente: snapshot completo (EventStateSnapshot). */
   STATE: "event:state",
+  /** Servidor → cliente: cambio del estado del directo (EventSub stream.online/offline). Payload: { live: boolean }. */
+  LIVE_STATUS: "channel:live-status",
   SUGGESTION_ADDED: "suggestion:added",
   SUGGESTION_REMOVED: "suggestion:removed",
   VOTE_UPDATED: "vote:updated",

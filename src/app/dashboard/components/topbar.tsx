@@ -10,9 +10,15 @@ interface TopbarProps {
   avatarUrl: string | null;
   copied: boolean;
   onCopyOverlayUrl: () => void;
+  /**
+   * Estado del directo empujado por el socket (EventSub stream.online/offline);
+   * null hasta el primer evento, en cuyo caso manda el sondeo HTTP.
+   */
+  liveStatus: boolean | null;
 }
 
-// Intervalo de sondeo del estado real del directo.
+// Sondeo de respaldo del estado del directo: lo normal es que el cambio llegue
+// al instante por socket (EventSub); esto reconcilia si un evento se pierde.
 const LIVE_POLL_MS = 60_000;
 
 function initials(name: string): string {
@@ -23,9 +29,9 @@ function initials(name: string): string {
     .join("");
 }
 
-/** Estado real del directo en Twitch, consultado vía /api/twitch/live. */
-function useLiveStatus(): boolean | null {
-  const [live, setLive] = useState<boolean | null>(null);
+/** Estado real del directo: el push del socket manda; el sondeo HTTP cubre el arranque y reconcilia. */
+function useLiveStatus(liveStatus: boolean | null): boolean | null {
+  const [polled, setPolled] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +42,7 @@ function useLiveStatus(): boolean | null {
         if (!res.ok) return;
         const data = (await res.json()) as { live?: unknown };
         if (!cancelled && typeof data.live === "boolean") {
-          setLive(data.live);
+          setPolled(data.live);
         }
       } catch {
         // Error de red: se reintenta en el siguiente sondeo.
@@ -51,7 +57,7 @@ function useLiveStatus(): boolean | null {
     };
   }, []);
 
-  return live;
+  return liveStatus ?? polled;
 }
 
 export function Topbar({
@@ -59,8 +65,9 @@ export function Topbar({
   avatarUrl,
   copied,
   onCopyOverlayUrl,
+  liveStatus,
 }: TopbarProps) {
-  const live = useLiveStatus();
+  const live = useLiveStatus(liveStatus);
 
   return (
     <header className="flex items-center justify-between gap-3 border-b border-violet-500/15 bg-[#0c0718]/60 px-6 py-3.5">

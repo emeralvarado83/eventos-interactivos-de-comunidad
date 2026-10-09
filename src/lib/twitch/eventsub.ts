@@ -3,6 +3,9 @@
 // propio streamer (transporte websocket: funciona en localhost, sin URL
 // pública). Usa el WebSocket global de Node 22+, sin dependencias extra.
 //
+// Además del chat, se suscribe a `stream.online`/`stream.offline` para
+// empujar el estado del directo al dashboard por Socket.IO al instante.
+//
 // Todas las fallas se loguean y jamás tumban el proceso: la DB puede no estar
 // disponible, los tokens pueden estar caducados y Twitch puede cortar la
 // conexión (reconexión con backoff exponencial).
@@ -11,6 +14,8 @@ import { db } from "@/lib/db";
 import { config } from "@/lib/config";
 import { decryptSecret, encryptSecret } from "@/lib/auth/crypto";
 import { refreshAccessToken } from "@/lib/twitch/oauth";
+import { setCachedLiveStatus } from "@/lib/twitch/helix";
+import { SOCKET_EVENTS } from "@/lib/realtime/contracts";
 
 const EVENTSUB_WS_URL = "wss://eventsub.wss.twitch.tv/ws";
 const SUBSCRIPTIONS_URL = "https://api.twitch.tv/helix/eventsub/subscriptions";
@@ -32,7 +37,7 @@ interface ConnectionState {
 // Clave: twitchId del streamer.
 const connections = new Map<string, ConnectionState>();
 
-interface EventSubChatMessage {
+interface EventSubMessage {
   metadata: { message_id: string; message_type: string };
   payload: {
     session?: { id: string; reconnect_url?: string | null };
@@ -77,8 +82,12 @@ async function getValidAccessToken(twitchUserId: string): Promise<string> {
   return tokens.accessToken;
 }
 
-async function subscribeToChat(twitchUserId: string, sessionId: string): Promise<void> {
-  const accessToken = await getValidAccessToken(twitchUserId);
+async function createSubscription(
+  accessToken: string,
+  sessionId: string,
+  type: string,
+  condition: Record<string, string>
+): Promise<void> {
   const res = await fetch(SUBSCRIPTIONS_URL, {
     method: "POST",
     headers: {
@@ -87,10 +96,9 @@ async function subscribeToChat(twitchUserId: string, sessionId: string): Promise
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      type: "channel.chat.message",
+      type,
       version: "1",
-      // El streamer escucha su propio chat: broadcaster = user.
-      condition: { broadcaster_user_id: twitchUserId, user_id: twitchUserId },
+      condition,
       transport: { method: "websocket", session_id: sessionId },
     }),
   });
@@ -100,14 +108,58 @@ async function subscribeToChat(twitchUserId: string, sessionId: string): Promise
   }
 }
 
-async function handleNotification(message: EventSubChatMessage, state: ConnectionState): Promise<void> {
-  if (message.payload.subscription?.type !== "channel.chat.message") return;
+/**
+ * Crea las suscripciones de la sesión: chat + cambios del estado del directo.
+ * Un fallo en una no impide crear las demás (se loguea y se sigue).
+ */
+async function subscribeToEvents(twitchUserId: string, sessionId: string): Promise<void> {
+  const accessToken = await getValidAccessToken(twitchUserId);
+  const specs: { type: string; condition: Record<string, string> }[] = [
+    {
+      type: "channel.chat.message",
+      // El streamer escucha su propio chat: broadcaster = user.
+      condition: { broadcaster_user_id: twitchUserId, user_id: twitchUserId },
+    },
+    { type: "stream.online", condition: { broadcaster_user_id: twitchUserId } },
+    { type: "stream.offline", condition: { broadcaster_user_id: twitchUserId } },
+  ];
+  for (const spec of specs) {
+    try {
+      await createSubscription(accessToken, sessionId, spec.type, spec.condition);
+    } catch (err) {
+      console.error(`Suscripción ${spec.type} falló para ${twitchUserId}:`, err);
+    }
+  }
+}
 
+/** stream.online/stream.offline: actualiza la caché de Helix y avisa al dashboard. */
+async function handleStreamStatusChange(twitchUserId: string, live: boolean): Promise<void> {
+  // La caché hace que /api/twitch/live refleje el cambio sin esperar a Helix.
+  setCachedLiveStatus(twitchUserId, live);
+  const channel = await db.channel.findUnique({ where: { twitchId: twitchUserId } });
+  if (!channel) return;
+  // Import perezoso para evitar ciclos entre módulos de servicio.
+  const { emitToChannel } = await import("@/lib/realtime/server");
+  emitToChannel(channel.id, SOCKET_EVENTS.LIVE_STATUS, { live });
+}
+
+async function handleNotification(
+  twitchUserId: string,
+  message: EventSubMessage,
+  state: ConnectionState
+): Promise<void> {
   // Dedup por message_id: Twitch puede reenviar notificaciones.
   const messageId = message.metadata.message_id;
   if (state.seenMessageIds.has(messageId)) return;
   if (state.seenMessageIds.size >= MAX_SEEN_MESSAGE_IDS) state.seenMessageIds.clear();
   state.seenMessageIds.add(messageId);
+
+  const type = message.payload.subscription?.type;
+  if (type === "stream.online" || type === "stream.offline") {
+    await handleStreamStatusChange(twitchUserId, type === "stream.online");
+    return;
+  }
+  if (type !== "channel.chat.message") return;
 
   const event = message.payload.event;
   const text = event?.message?.text;
@@ -135,9 +187,9 @@ function handleMessage(
 ): void {
   void (async () => {
     if (typeof raw.data !== "string") return;
-    let message: EventSubChatMessage;
+    let message: EventSubMessage;
     try {
-      message = JSON.parse(raw.data) as EventSubChatMessage;
+      message = JSON.parse(raw.data) as EventSubMessage;
     } catch {
       return;
     }
@@ -148,14 +200,14 @@ function handleMessage(
         state.attempts = 0;
         // En un socket de reconnect_url las suscripciones se conservan.
         if (sessionId && !isReconnectSocket) {
-          await subscribeToChat(twitchUserId, sessionId);
+          await subscribeToEvents(twitchUserId, sessionId);
         }
         break;
       }
       case "session_keepalive":
         break;
       case "notification":
-        await handleNotification(message, state);
+        await handleNotification(twitchUserId, message, state);
         break;
       case "session_reconnect": {
         const reconnectUrl = message.payload.session?.reconnect_url;

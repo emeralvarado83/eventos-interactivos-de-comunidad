@@ -18,6 +18,11 @@ interface UseChannelSocketOptions {
 interface UseChannelSocket {
   snapshot: EventStateSnapshot | null;
   connected: boolean;
+  /**
+   * Estado del directo empujado por EventSub (stream.online/offline).
+   * null hasta que llega el primer evento; el cliente usa HTTP como respaldo.
+   */
+  liveStatus: boolean | null;
   /** Permite aplicar al estado local la respuesta de una acción HTTP. */
   setSnapshot: (snapshot: EventStateSnapshot) => void;
 }
@@ -34,6 +39,7 @@ export function useChannelSocket({
     null
   );
   const [connected, setConnected] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<boolean | null>(null);
   const [prevChannelId, setPrevChannelId] = useState(channelId);
 
   // Reinicio del estado al cambiar de canal (ajuste durante el render).
@@ -41,6 +47,7 @@ export function useChannelSocket({
     setPrevChannelId(channelId);
     setSnapshotState(null);
     setConnected(false);
+    setLiveStatus(null);
   }
 
   const setSnapshot = useCallback((next: EventStateSnapshot) => {
@@ -57,6 +64,9 @@ export function useChannelSocket({
     socket.on("disconnect", () => setConnected(false));
     socket.on(SOCKET_EVENTS.STATE, (state: EventStateSnapshot) => {
       setSnapshot(state);
+    });
+    socket.on(SOCKET_EVENTS.LIVE_STATUS, (payload: { live?: unknown }) => {
+      if (typeof payload?.live === "boolean") setLiveStatus(payload.live);
     });
 
     // Respaldo: si el socket no conecta a tiempo, pedir el estado por HTTP.
@@ -78,5 +88,5 @@ export function useChannelSocket({
     };
   }, [channelId, fallbackUrl, setSnapshot]);
 
-  return { snapshot, connected, setSnapshot };
+  return { snapshot, connected, liveStatus, setSnapshot };
 }

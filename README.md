@@ -89,6 +89,15 @@ Para obtener el `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET` del `.env`:
 4. Participación del chat: durante las sugerencias, cualquier mensaje de texto válido es una sugerencia; durante la votación, un número (posición en la lista) es un voto; durante la inscripción de un sorteo, el comando de participación configurado en el dashboard (`participo` por defecto) inscribe al espectador (una sola vez). Nunca se responde al chat.
 5. Las sugerencias se validan contra el catálogo IGDB: los typos se canonizan al título oficial ("Elden Rign" → "Elden Ring", también abreviaturas como "GTA V") y lo que no sea un juego real se descarta silenciosamente. Si IGDB no responde, la sugerencia se acepta igual (fail-open). Se puede desactivar con `IGDB_VALIDATION=off`.
 
+## Simulación de un en vivo (solo desarrollo)
+
+Para probar el flujo completo sin un stream real, en desarrollo existe un simulador de chat:
+
+- Abre `http://localhost:3000/dev/simulador` con un evento iniciado desde el dashboard.
+- Permite enviar mensajes manuales como cualquier espectador ficticio o lanzar ráfagas automáticas (15 sugerencias de juegos, 15 votos o 15 «participo» de espectadores distintos).
+- Internamente llama a `POST /api/dev/simulate-chat`, que inyecta el mensaje en el mismo procesador que Twitch EventSub (`src/lib/chat/processor.ts`), así que el dashboard y el overlay reaccionan en tiempo real vía Socket.IO.
+- Ambos responden 404 en producción (`NODE_ENV=production`).
+
 ## Estructura relevante
 
 - `server.ts` — servidor Node personalizado (HTTP + Next.js + Socket.IO + listener de Twitch EventSub en el mismo proceso).

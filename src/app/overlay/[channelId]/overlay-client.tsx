@@ -8,10 +8,10 @@ import { EventCore } from "./event-core";
 import type {
   EventTypeName,
   RaffleParticipantView,
+  SuggestionView,
   VotingOptionView,
 } from "@/lib/realtime/contracts";
 
-const MAX_RECENT_SUGGESTIONS = 8;
 
 function CrownIcon({ className }: { className?: string }) {
   return (
@@ -153,6 +153,83 @@ function Panel({
       </div>
       <div className="flex flex-col gap-2 p-3">{children}</div>
     </section>
+  );
+}
+
+/**
+ * Lista tipo chat: los elementos más recientes van abajo y, cuando el
+ * contenido supera el alto máximo, los primeros se van desplazando fuera de
+ * vista. Mantiene el auto-scroll al final salvo que el usuario suba
+ * manualmente; basta con volver abajo para reengancharse.
+ */
+function ScrollableFeed({
+  itemCount,
+  emptyMessage,
+  children,
+}: {
+  itemCount: number;
+  emptyMessage: string;
+  children: ReactNode;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (list && stickToBottomRef.current) {
+      list.scrollTop = list.scrollHeight;
+    }
+  }, [itemCount]);
+
+  if (itemCount === 0) {
+    return (
+      <p className="px-1 py-2 text-sm font-semibold text-violet-200/70">
+        {emptyMessage}
+      </p>
+    );
+  }
+
+  return (
+    <div
+      ref={listRef}
+      onScroll={(e) => {
+        const list = e.currentTarget;
+        stickToBottomRef.current =
+          list.scrollHeight - list.scrollTop - list.clientHeight < 24;
+      }}
+      className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1"
+    >
+      {children}
+    </div>
+  );
+}
+
+function SuggestionRow({ suggestion }: { suggestion: SuggestionView }) {
+  return (
+    <div className="flex shrink-0 items-center gap-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-[#120c22] to-[#0d0819] px-3 py-2">
+      <ChatIcon className="h-4 w-4 shrink-0 text-violet-300" />
+      <p className="min-w-0 flex-1 truncate text-base font-bold text-white">
+        {suggestion.gameName}
+        <span className="ml-2 text-sm font-semibold text-violet-300/70">
+          @{suggestion.twitchLogin}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function ParticipantRow({
+  participant,
+}: {
+  participant: RaffleParticipantView;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-[#120c22] to-[#0d0819] px-3 py-2">
+      <PersonIcon className="h-4 w-4 shrink-0 text-violet-300" />
+      <p className="min-w-0 flex-1 truncate text-base font-bold text-white">
+        @{participant.twitchLogin}
+      </p>
+    </div>
   );
 }
 
@@ -399,35 +476,19 @@ export function OverlayClient({ channelId }: { channelId: string }) {
             subtitle={SUGGEST_SUBTITLE}
           />
           <Panel
-            title="Sugerencias recientes"
+            title="Sugerencias"
             count={snapshot.suggestions.length}
             countNoun={["juego", "juegos"]}
             countIcon={<GamepadIcon className="h-3 w-3" />}
           >
-            {snapshot.suggestions.length === 0 ? (
-              <p className="px-1 py-2 text-sm font-semibold text-violet-200/70">
-                Aún no hay sugerencias. ¡Sé la primera persona en proponer un
-                juego!
-              </p>
-            ) : (
-              snapshot.suggestions
-                .slice(-MAX_RECENT_SUGGESTIONS)
-                .reverse()
-                .map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center gap-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-[#120c22] to-[#0d0819] px-3 py-2"
-                  >
-                    <ChatIcon className="h-4 w-4 shrink-0 text-violet-300" />
-                    <p className="min-w-0 flex-1 truncate text-base font-bold text-white">
-                      {s.gameName}
-                      <span className="ml-2 text-sm font-semibold text-violet-300/70">
-                        @{s.twitchLogin}
-                      </span>
-                    </p>
-                  </div>
-                ))
-            )}
+            <ScrollableFeed
+              itemCount={snapshot.suggestions.length}
+              emptyMessage="Aún no hay sugerencias. ¡Sé la primera persona en proponer un juego!"
+            >
+              {snapshot.suggestions.map((s) => (
+                <SuggestionRow key={s.id} suggestion={s} />
+              ))}
+            </ScrollableFeed>
           </Panel>
           <InstructionsFooter
             phase="suggest"
@@ -460,37 +521,50 @@ export function OverlayClient({ channelId }: { channelId: string }) {
         </>
       )}
 
-      {(status === "SUGGESTIONS_FINISHED" || status === "VOTING_FINISHED") &&
-        snapshot && snapshot.event && (
+      {status === "SUGGESTIONS_FINISHED" && snapshot && snapshot.event && (
         <>
           <HeaderBanner
             countdown={null}
             title={phaseTitleNode(snapshot.event)}
-            subtitle={
-              status === "SUGGESTIONS_FINISHED"
-                ? SUGGEST_SUBTITLE
-                : VOTING_SUBTITLE
-            }
+            subtitle={SUGGEST_SUBTITLE}
           />
           <Panel
-            title={
-              status === "SUGGESTIONS_FINISHED"
-                ? "Sugerencias cerradas"
-                : "Encuesta cerrada"
-            }
-            count={
-              status === "SUGGESTIONS_FINISHED"
-                ? snapshot.suggestions.length
-                : undefined
-            }
+            title="Sugerencias cerradas"
+            count={snapshot.suggestions.length}
             countNoun={["juego", "juegos"]}
             countIcon={<GamepadIcon className="h-3 w-3" />}
           >
-            <p className="px-1 py-2 text-lg font-extrabold text-white">
-              {status === "SUGGESTIONS_FINISHED"
-                ? "¡Sugerencias cerradas!"
-                : "¡Encuesta cerrada!"}
-            </p>
+            <ScrollableFeed
+              itemCount={snapshot.suggestions.length}
+              emptyMessage="No se recibieron sugerencias."
+            >
+              {snapshot.suggestions.map((s) => (
+                <SuggestionRow key={s.id} suggestion={s} />
+              ))}
+            </ScrollableFeed>
+          </Panel>
+        </>
+      )}
+
+      {status === "VOTING_FINISHED" && snapshot && snapshot.event && (
+        <>
+          <HeaderBanner
+            countdown={null}
+            title={phaseTitleNode(snapshot.event)}
+            subtitle={VOTING_SUBTITLE}
+          />
+          <Panel
+            title="Encuesta cerrada"
+            count={snapshot.votingOptions.length}
+            countNoun={["opción", "opciones"]}
+          >
+            {snapshot.votingOptions.map((o) => (
+              <VotingRow
+                key={o.id}
+                option={o}
+                isLeader={o.votes > 0 && o.votes === maxVotes}
+              />
+            ))}
           </Panel>
         </>
       )}
@@ -569,30 +643,18 @@ export function OverlayClient({ channelId }: { channelId: string }) {
             subtitle={RAFFLE_SUBTITLE}
           />
           <Panel
-            title="Participantes recientes"
+            title="Participantes"
             count={snapshot.raffleParticipants.length}
             countNoun={["participante", "participantes"]}
           >
-            {snapshot.raffleParticipants.length === 0 ? (
-              <p className="px-1 py-2 text-sm font-semibold text-violet-200/70">
-                Aún no hay participantes. ¡Sé la primera persona en participar!
-              </p>
-            ) : (
-              snapshot.raffleParticipants
-                .slice(-MAX_RECENT_SUGGESTIONS)
-                .reverse()
-                .map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-[#120c22] to-[#0d0819] px-3 py-2"
-                  >
-                    <PersonIcon className="h-4 w-4 shrink-0 text-violet-300" />
-                    <p className="min-w-0 flex-1 truncate text-base font-bold text-white">
-                      @{p.twitchLogin}
-                    </p>
-                  </div>
-                ))
-            )}
+            <ScrollableFeed
+              itemCount={snapshot.raffleParticipants.length}
+              emptyMessage="Aún no hay participantes. ¡Sé la primera persona en participar!"
+            >
+              {snapshot.raffleParticipants.map((p) => (
+                <ParticipantRow key={p.id} participant={p} />
+              ))}
+            </ScrollableFeed>
           </Panel>
           <InstructionsFooter
             phase="participate"
@@ -612,13 +674,19 @@ export function OverlayClient({ channelId }: { channelId: string }) {
             title={RAFFLE_TITLE}
             subtitle={RAFFLE_SUBTITLE}
           />
-          <Panel title="Inscripciones cerradas">
-            <p className="px-1 py-2 text-lg font-extrabold text-white">
-              {snapshot.raffleParticipants.length}{" "}
-              {snapshot.raffleParticipants.length === 1
-                ? "participante"
-                : "participantes"}
-            </p>
+          <Panel
+            title="Inscripciones cerradas"
+            count={snapshot.raffleParticipants.length}
+            countNoun={["participante", "participantes"]}
+          >
+            <ScrollableFeed
+              itemCount={snapshot.raffleParticipants.length}
+              emptyMessage="No se recibieron participantes."
+            >
+              {snapshot.raffleParticipants.map((p) => (
+                <ParticipantRow key={p.id} participant={p} />
+              ))}
+            </ScrollableFeed>
           </Panel>
         </>
       )}
