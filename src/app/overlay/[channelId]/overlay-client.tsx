@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useChannelSocket } from "@/hooks/use-channel-socket";
 import { formatCountdown, useCountdown } from "@/hooks/use-countdown";
 import { useEventStartAlert } from "@/hooks/use-event-start-alert";
+import { useWinnerAlert } from "@/hooks/use-winner-alert";
 import { EventCore } from "./event-core";
 import type {
   EventTypeName,
@@ -429,6 +430,13 @@ export function OverlayClient({ channelId }: { channelId: string }) {
 
   const liveStatus = snapshot?.event?.status ?? null;
   useEventStartAlert(liveStatus, snapshot?.channel.alertSoundEnabled ?? true);
+
+  // Victoria: solo en la revelación definitiva (COMPLETED con ganador), no en
+  // la vista previa de VOTING_FINISHED ni si el evento termina sin ganador.
+  const winnerRevealed =
+    liveStatus === "COMPLETED" &&
+    (snapshot?.winner != null || snapshot?.raffleWinner != null);
+  useWinnerAlert(winnerRevealed, snapshot?.channel.alertSoundEnabled ?? true);
 
   // Transición "evento detectado": cuando el estado pasa de idle (sin
   // evento, DRAFT o CANCELLED) a una fase activa, el Event Core ejecuta
